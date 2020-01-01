@@ -3,6 +3,7 @@
         ".editorconfig": true,
         ".vscode": true,
         "**/*.spec.*": true,
+        "angular.json": true,
         "browserslist": true,
         "e2e": true,
         "karma.conf.js": true,
