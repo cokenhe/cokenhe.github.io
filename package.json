@@ -1,13 +1,16 @@
 {
   "name": "cokenhe",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
     "test": "ng test",
     "lint": "ng lint",
-    "e2e": "ng e2e"
+    "e2e": "ng e2e",
+    "major": "npm --no-git-tag-version version major",
+    "minor": "npm --no-git-tag-version version minor",
+    "patch": "npm --no-git-tag-version version patch"
   },
   "private": true,
   "dependencies": {
