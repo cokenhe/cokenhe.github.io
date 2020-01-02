@@ -8,6 +8,7 @@
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
+    "deploy": "npm run build; ngh --dir=dist/cokenhe --branch=master --no-silent",
     "major": "npm --no-git-tag-version version major",
     "minor": "npm --no-git-tag-version version minor",
     "patch": "npm --no-git-tag-version version patch"
