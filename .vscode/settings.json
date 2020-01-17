@@ -5,6 +5,7 @@
         "**/*.spec.*": true,
         "angular.json": true,
         "browserslist": true,
+        "dist/": true,
         "e2e": true,
         "karma.conf.js": true,
         "node_modules": true,

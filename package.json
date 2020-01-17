@@ -1,6 +1,6 @@
 {
   "name": "cokenhe",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -8,7 +8,7 @@
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
-    "deploy": "npm run build; ngh --dir=dist/cokenhe --branch=master --no-silent",
+    "deploy": "npm run build; ngh --dir=dist/cokenhe --branch=master --no-silent; rm -rf dist/",
     "major": "npm --no-git-tag-version version major",
     "minor": "npm --no-git-tag-version version minor",
     "patch": "npm --no-git-tag-version version patch"
@@ -16,10 +16,12 @@
   "private": true,
   "dependencies": {
     "@angular/animations": "~8.2.14",
+    "@angular/cdk": "~8.2.3",
     "@angular/common": "~8.2.14",
     "@angular/compiler": "~8.2.14",
     "@angular/core": "~8.2.14",
     "@angular/forms": "~8.2.14",
+    "@angular/material": "^8.2.3",
     "@angular/platform-browser": "~8.2.14",
     "@angular/platform-browser-dynamic": "~8.2.14",
     "@angular/router": "~8.2.14",
