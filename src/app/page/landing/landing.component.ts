@@ -7,6 +7,8 @@ import { Component, OnInit } from '@angular/core';
 })
 export class LandingComponent implements OnInit {
 
+  githubPage = "https://github.com/cokenhe/"
+
   constructor() { }
 
   ngOnInit() {
