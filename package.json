@@ -4,11 +4,11 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build --prod --base-href 'https://cokenhe.github.io/'",
+    "build": "rm -rf docs/; ng build --prod --base-href 'https://cokenhe.github.io/cokenhe/'",
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
-    "deploy": "npm run build; ngh --dir=dist/cokenhe --branch=master --no-silent; rm -rf dist/",
+    "deploy": "npm run build; ng deploy --dir=dist/cokenhe --branch=master --no-silent; rm -rf dist/",
     "major": "npm --no-git-tag-version version major",
     "minor": "npm --no-git-tag-version version minor",
     "patch": "npm --no-git-tag-version version patch"
@@ -37,6 +37,7 @@
     "@types/jasmine": "~3.3.8",
     "@types/jasminewd2": "~2.0.3",
     "@types/node": "~8.9.4",
+    "angular-cli-ghpages": "^1.0.0-rc.1",
     "codelyzer": "^5.2.2",
     "jasmine-core": "~3.4.0",
     "jasmine-spec-reporter": "~4.2.1",
