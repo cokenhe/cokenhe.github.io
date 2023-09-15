@@ -45,8 +45,11 @@ export const PROJECTS = [
         iosLink: "https://apps.apple.com/hk/app/id1493163920?l=en",
         androidLink:
             "https://play.google.com/store/apps/details?id=com.anxinbao.anxinbaobaby&hl=en_CA&gl=US",
-        description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla vitae diam euismod, ali",
+        description: "Using Dart (Flutter) and JIRA",
+        points: [
+            "Created a user-friendly mobile application with Flutter to enable a seamless BLE connection with smart diapers.",
+            "Engineered and structured intuitive chart-based UI elements, delivering users clear and visually appealing representations of diaper wetness data.",
+        ],
     },
     {
         images: [aq_1, aq_2, aq_3],
@@ -55,6 +58,11 @@ export const PROJECTS = [
         androidLink:
             "https://play.google.com/store/apps/details?id=co.appquick.hkieged",
         description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla vitae diam euismod, ali",
+            "Using Swift, Kotlin, JavaScript (Angular), ExpressJS, Firebase, and AWS",
+        points: [
+            "Crafted bespoke mobile applications for prominent enterprises, elevating event management and enriching attendee engagement.",
+            "Devised and executed an intuitive Content Management System (CMS), enabling clients to seamlessly oversee real-time app data updates.",
+            "Worked closely with corporate partners to tailor app functionalities, ensuring precise alignment with their unique event requirements.",
+        ],
     },
 ];
