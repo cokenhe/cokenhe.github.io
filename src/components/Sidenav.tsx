@@ -1,11 +1,5 @@
 import { ReactNode, useState } from "react";
-import {
-    AiOutlineHome,
-    AiOutlineMail,
-    AiOutlineMenu,
-    AiOutlineProject,
-} from "react-icons/ai";
-import { BsPerson } from "react-icons/bs";
+import { AiOutlineHome, AiOutlineMenu, AiOutlineProject } from "react-icons/ai";
 import { GrProjects } from "react-icons/gr";
 
 const sections = [
@@ -16,15 +10,15 @@ const sections = [
         title: "Project",
         id: "projects",
     },
-    { icon: <BsPerson size={20} />, title: "Resume", id: "main" },
-    {
-        icon: <AiOutlineMail size={20} />,
-        title: "Contact",
-        id: "contact",
-    },
+    // { icon: <BsPerson size={20} />, title: "Resume", id: "main" },
+    // {
+    //     icon: <AiOutlineMail size={20} />,
+    //     title: "Contact",
+    //     id: "contact",
+    // },
 ];
 
-const Sidenav = () => {
+const SideNav = () => {
     const [isOpen, setIsOpen] = useState(false);
     const toggle = () => setIsOpen((open) => !open);
 
@@ -51,10 +45,10 @@ const Sidenav = () => {
     );
 
     return (
-        <div>
+        <nav>
             <AiOutlineMenu
                 onClick={toggle}
-                className="absolute top-4 right-4 z-[99] md:hidden"
+                className="absolute top-4 left-4 z-[99] md:hidden"
             />
             {isOpen && (
                 <div className="fixed w-full h-screen bg-white/90 flex flex-col justify-center items-center z-20">
@@ -65,15 +59,15 @@ const Sidenav = () => {
                     </div>
                 </div>
             )}
-            <div className="md:block hidden fixed top-[25%] z-10">
+            <div className="md:block hidden fixed top-[50%] -translate-y-1/2 z-10">
                 <div className="flex flex-col">
                     {sections.map(({ icon, id }, idx) =>
                         sectionIcon(idx, icon, id)
                     )}
                 </div>
             </div>
-        </div>
+        </nav>
     );
 };
 
-export default Sidenav;
+export default SideNav;

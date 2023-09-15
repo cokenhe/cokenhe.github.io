@@ -1,6 +1,6 @@
 export interface WorkModel {
-    start: number;
-    end: number;
+    start: string;
+    end: string;
     title: string;
     company: string;
     description: string;

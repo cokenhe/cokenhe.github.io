@@ -2,6 +2,20 @@ import { AiFillMail } from "react-icons/ai";
 import { FaGithub, FaLinkedin } from "react-icons/fa";
 import { TypeAnimation } from "react-type-animation";
 
+const animation = [
+    "Mobile Developer 👨‍💻",
+    "Frontend Developer 👨‍💻",
+    "Gym Lover 🏋️",
+    "Gamer 🎮",
+    "Foodie 🍔",
+];
+
+const StyledIcon = ({ children }: { children: React.ReactNode }) => (
+    <div className="rounded-full p-2 transition-[colors, transform] hover:bg-gray-300 hover:-translate-y-0.5 duration-200">
+        {children}
+    </div>
+);
+
 const MainPage = () => {
     return (
         <section id="main">
@@ -18,18 +32,23 @@ const MainPage = () => {
                     <h2 className="flex sm:text-3xl text-2xl pt-4 text-gray-800">
                         I'm a
                         <TypeAnimation
-                            sequence={["Mobile", 1000, "Frontend", 1000]}
+                            sequence={animation.flatMap((text) => [text, 1500])}
                             wrapper="div"
                             cursor={true}
                             repeat={Infinity}
                             style={{ fontSize: "1em", paddingLeft: "5px" }}
                         />
-                        Developer
                     </h2>
                     <div className="flex justify-between pt-6 max-w-[200px] w-full">
-                        <FaGithub className="cursor-pointer" size={20} />
-                        <FaLinkedin className="cursor-pointer" size={20} />
-                        <AiFillMail className="cursor-pointer" size={20} />
+                        <StyledIcon>
+                            <FaGithub className="cursor-pointer" size={25} />
+                        </StyledIcon>
+                        <StyledIcon>
+                            <FaLinkedin className="cursor-pointer" size={25} />
+                        </StyledIcon>
+                        <StyledIcon>
+                            <AiFillMail className="cursor-pointer" size={25} />
+                        </StyledIcon>
                     </div>
                 </div>
             </div>
