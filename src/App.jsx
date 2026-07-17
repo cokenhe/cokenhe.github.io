@@ -479,7 +479,8 @@ function ClassicPortfolio({ portalControl }) {
 function App() {
   const shouldReduceMotion = Boolean(useReducedMotion());
   const [portalPhase, setPortalPhase] = useState(PORTAL_PHASE.CLASSIC_IDLE);
-  const [isNewWorldReady, setIsNewWorldReady] = useState(false);
+  const [newWorldReadyGeneration, setNewWorldReadyGeneration] = useState(0);
+  const isNewWorldReady = newWorldReadyGeneration > 0;
   const world = getWorldForPortalPhase(portalPhase);
   const destination = getNextWorld(world);
   const isTransitioning = isPortalTransitioning(portalPhase);
@@ -531,7 +532,7 @@ function App() {
       if (event.origin !== window.location.origin) return;
       if (event.data?.scope !== "ken-portfolio-portal") return;
       if (event.data?.type !== "new-world-ready") return;
-      setIsNewWorldReady(true);
+      setNewWorldReadyGeneration((generation) => generation + 1);
     };
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
@@ -544,7 +545,7 @@ function App() {
       type: "set-interactive",
       interactive: portalPhase === PORTAL_PHASE.NOCTURNAL_IDLE,
     }, window.location.origin);
-  }, [isNewWorldReady, portalPhase]);
+  }, [isNewWorldReady, newWorldReadyGeneration, portalPhase]);
 
   useEffect(() => () => {
     window.cancelAnimationFrame(scrollFrame.current);
@@ -560,6 +561,10 @@ function App() {
 
   const handlePortalAnimationEnd = (event) => {
     if (event.target !== event.currentTarget || !isTransitioning) return;
+    const expectedAnimationName = portalPhase === PORTAL_PHASE.OPENING
+      ? shouldReduceMotion ? "portal-world-open-reduced" : "portal-world-open"
+      : shouldReduceMotion ? "portal-world-close-reduced" : "portal-world-close";
+    if (event.animationName !== expectedAnimationName) return;
     finishPortalTransition(portalPhase);
   };
 

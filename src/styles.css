@@ -524,6 +524,16 @@ body.is-crossing-portal {
   100% { opacity: 0; transform: translate(-50%, -50%) scale(0.02); }
 }
 
+@keyframes portal-rim-open-reduced {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.02); }
+  to { opacity: 0.2; transform: translate(-50%, -50%) scale(30); }
+}
+
+@keyframes portal-rim-close-reduced {
+  from { opacity: 0.2; transform: translate(-50%, -50%) scale(30); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(0.02); }
+}
+
 @keyframes portal-ring-pulse {
   to { transform: scale(1.07); opacity: 0.4; }
 }
@@ -1043,10 +1053,10 @@ li + li {
   }
 
   .portal-transition--opening.is-active .portal-transition__disc {
-    animation: portal-rim-open 120ms linear both !important;
+    animation: portal-rim-open-reduced 120ms linear both !important;
   }
 
   .portal-transition--closing.is-active .portal-transition__disc {
-    animation: portal-rim-close 120ms linear both !important;
+    animation: portal-rim-close-reduced 120ms linear both !important;
   }
 }

@@ -64,6 +64,10 @@ for (const [source, markers] of [
     "PORTAL_PHASE",
     "onAnimationEnd={handlePortalAnimationEnd}",
     "ken-portfolio-portal",
+    "newWorldReadyGeneration",
+    "event.animationName !== expectedAnimationName",
+    "portal-world-open-reduced",
+    "portal-world-close-reduced",
   ]],
   [magicButton, [
     "magic-portal-button__spark",
@@ -82,6 +86,8 @@ for (const [source, markers] of [
   [styles, [
     "@keyframes portal-world-open",
     "@keyframes portal-world-close",
+    "@keyframes portal-rim-open-reduced",
+    "@keyframes portal-rim-close-reduced",
     "clip-path: circle(150vmax",
     "@keyframes magic-spark",
     "prefers-reduced-motion",
