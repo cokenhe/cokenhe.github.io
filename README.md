@@ -1,6 +1,6 @@
 # Ken He Portfolio Portal
 
-This is the React 18/Vite source for the Open Design project one directory above.
+This is the React 18/Vite source for `cokenhe.github.io`.
 
 The app deliberately keeps two complete visual worlds:
 
@@ -28,16 +28,6 @@ npm run preview -- --host 127.0.0.1 --port 4173
 # In another terminal:
 npm run test:e2e -- http://127.0.0.1:4173/
 ```
-
-## Build into the Open Design project root
-
-```bash
-npm run build:open-design
-cd ..
-python3 -m http.server 8125 --bind 127.0.0.1
-```
-
-Open `http://127.0.0.1:8125/`.
 
 ## Verify
 

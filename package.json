@@ -4,12 +4,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build && node scripts/deploy-site.mjs",
-    "build:open-design": "OPEN_DESIGN_BUILD=1 vite build && node scripts/deploy-open-design.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node scripts/check-site.mjs && node --test tests/*.test.mjs",
     "test:e2e": "node scripts/verify-portal.mjs",
-    "verify": "npm run build && npm run test",
-    "verify:open-design": "npm run build:open-design && npm run test"
+    "verify": "npm run build && npm run test"
   },
   "dependencies": {
     "@vitejs/plugin-react-swc": "4.3.1",

@@ -52,7 +52,6 @@ const requiredFiles = [
   "src/public/assets/1-f96675d8.webp",
   "src/public/coding.png",
   "scripts/deploy-site.mjs",
-  "scripts/deploy-open-design.mjs",
   "index.html",
 ];
 

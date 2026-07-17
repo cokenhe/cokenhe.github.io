@@ -1,8 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 
-const isOpenDesignBuild = process.env.OPEN_DESIGN_BUILD === "1";
-
 export default defineConfig({
   root: "src",
   base: "./",
@@ -12,8 +10,8 @@ export default defineConfig({
     postcss: { plugins: [] },
   },
   build: {
-    outDir: isOpenDesignBuild ? "../dist-open-design" : "../dist-site",
+    outDir: "../dist-site",
     emptyOutDir: true,
-    assetsDir: isOpenDesignBuild ? "react-assets" : "assets",
+    assetsDir: "assets",
   },
 });
