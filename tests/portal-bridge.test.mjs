@@ -18,6 +18,8 @@ test("the child accepts only exact same-origin parent messages", async () => {
   assert.equal(isTrustedHostMessage({ ...valid, source: {} }, parentWindow, valid.origin), false);
   assert.equal(isTrustedHostMessage({ ...valid, origin: "https://example.com" }, parentWindow, valid.origin), false);
   assert.equal(isTrustedHostMessage({ ...valid, data: { ...valid.data, scope: "other" } }, parentWindow, valid.origin), false);
+  assert.equal(isTrustedHostMessage({ ...valid, data: { ...valid.data, type: "new-world-ready" } }, parentWindow, valid.origin), false);
+  assert.equal(isTrustedHostMessage({ ...valid, data: { ...valid.data, interactive: "true" } }, parentWindow, valid.origin), false);
 });
 
 test("the child makes its document inert and blurs retained focus", async () => {
