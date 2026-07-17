@@ -600,7 +600,7 @@ function requireReducedMotionTransition(captures, direction) {
     }
   }
 
-  const centeredClipPattern = /^circle\(([\d.]+)px at 50% 50%\)$/;
+  const centeredClipPattern = /^circle\(([\d.]+)px(?: at 50% 50%)?\)$/;
   const centeredClipRadii = world.frames.map((frame) => (
     Number(frame.clipPath?.match(centeredClipPattern)?.[1])
   ));
