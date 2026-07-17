@@ -58,10 +58,25 @@ for (const text of requiredText) {
 
 for (const [source, markers] of [
   [app, ["ClassicPortfolio", "new-world/index.html", "data-world={world}", "crossPortal"]],
-  [magicButton, ["magic-portal-button__spark", "data-world-target", "getPortalButtonCopy"]],
+  [magicButton, [
+    "magic-portal-button__spark",
+    "data-world-target",
+    "getPortalButtonCopy",
+    "magic-portal-button__peek",
+    "new-world/clone-assets/animals/dog.png",
+    "aria-hidden=\"true\"",
+  ]],
   [portalTransition, ["portal-transition__disc", "data-state", "destination"]],
   [portalState, ["Enter the nocturnal portfolio", "Return to the classic portfolio", "REDUCED_TIMING"]],
-  [styles, ["@keyframes portal-shake-expand", "scale(32)", "@keyframes magic-spark", "prefers-reduced-motion"]],
+  [styles, [
+    "@keyframes portal-shake-expand",
+    "scale(32)",
+    "@keyframes magic-spark",
+    "prefers-reduced-motion",
+    ".magic-portal-button__peek-eye",
+    "@media (hover: hover)",
+    ".magic-portal-button--classic:focus-visible .magic-portal-button__peek",
+  ]],
 ]) {
   for (const marker of markers) {
     if (!source.includes(marker)) throw new Error(`Missing portal marker: ${marker}`);

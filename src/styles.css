@@ -194,6 +194,72 @@ body.is-crossing-portal {
   opacity: 0.72;
 }
 
+.magic-portal-button__peek {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 2px);
+  z-index: -1;
+  width: 96px;
+  height: 78px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(-50%, 62px, 0) rotate(0deg) scale(0.86);
+  transform-origin: 50% 100%;
+  transition: opacity 160ms ease, transform 420ms cubic-bezier(0.2, 0.82, 0.2, 1.18);
+}
+
+.magic-portal-button__peek-animal {
+  position: absolute;
+  inset: 0 auto auto 50%;
+  width: 96px;
+  height: 96px;
+  max-width: none;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 8px 8px rgba(28, 18, 8, 0.2));
+}
+
+.magic-portal-button__peek-eye {
+  position: absolute;
+  top: 27.83%;
+  width: 7.7%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.magic-portal-button__peek-eye--left {
+  left: 33.82%;
+  --peek-gaze-x: 1.5px;
+}
+
+.magic-portal-button__peek-eye--right {
+  left: 57.78%;
+  --peek-gaze-x: -1.5px;
+}
+
+.magic-portal-button__peek-iris {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 58%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 32%, #d8b780 0 12%, #72563a 38% 72%, #17100b 74%);
+  transform: translate(-50%, -50%) translate(var(--peek-gaze-x, 0), 3px);
+}
+
+@media (hover: hover) {
+  .magic-portal-button--classic:hover:not(:disabled) .magic-portal-button__peek {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) rotate(-3deg) scale(1);
+  }
+}
+
+.magic-portal-button--classic:focus-visible .magic-portal-button__peek {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0) rotate(-3deg) scale(1);
+}
+
 .magic-portal-button__halo {
   position: absolute;
   inset: 3px;
@@ -817,6 +883,16 @@ li + li {
 }
 
 @media (max-width: 680px) {
+  .magic-portal-button__peek {
+    width: 82px;
+    height: 68px;
+  }
+
+  .magic-portal-button__peek-animal {
+    width: 82px;
+    height: 82px;
+  }
+
   .magic-portal-button__label {
     display: none;
   }
@@ -918,6 +994,10 @@ li + li {
   .portal-transition__ring,
   .portal-transition__star {
     animation: none !important;
+  }
+
+  .magic-portal-button__peek {
+    transition: opacity 120ms linear, transform 120ms linear;
   }
 
   .portal-transition.is-active .portal-transition__disc {
