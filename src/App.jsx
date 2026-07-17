@@ -4,6 +4,14 @@ import {
   useScroll,
   useTransform,
 } from "framer-motion";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import MagicPortalButton from "./components/MagicPortalButton.jsx";
+import PortalTransition from "./components/PortalTransition.jsx";
+import {
+  getNextWorld,
+  getPortalTiming,
+  WORLD,
+} from "./portal-state.mjs";
 
 const contactLinks = [
   { label: "Experience", href: "#experience" },
@@ -186,7 +194,7 @@ function Reveal({ children, as = "section", className, delay }) {
   );
 }
 
-function App() {
+function ClassicPortfolio({ portalControl }) {
   const shouldReduceMotion = useReducedMotion();
   const { scrollYProgress } = useScroll();
   const progressScale = shouldReduceMotion ? 0 : scrollYProgress;
@@ -220,6 +228,7 @@ function App() {
               {link.label}
             </motion.a>
           ))}
+          {portalControl}
         </nav>
       </motion.header>
 
@@ -459,6 +468,138 @@ function App() {
         </div>
       </footer>
     </>
+  );
+}
+
+function App() {
+  const shouldReduceMotion = Boolean(useReducedMotion());
+  const [world, setWorld] = useState(WORLD.CLASSIC);
+  const [destination, setDestination] = useState(WORLD.NOCTURNAL);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isNewWorldReady, setIsNewWorldReady] = useState(false);
+  const classicScrollPosition = useRef(0);
+  const classicPortalButton = useRef(null);
+  const nocturnalPortalButton = useRef(null);
+  const restoreAfterSwap = useRef(false);
+  const scrollFrame = useRef(0);
+  const timers = useRef([]);
+
+  useLayoutEffect(() => {
+    document.documentElement.dataset.portfolioWorld = world;
+    document.body.classList.toggle("is-new-world", world === WORLD.NOCTURNAL);
+
+    return () => {
+      delete document.documentElement.dataset.portfolioWorld;
+      document.body.classList.remove("is-new-world");
+    };
+  }, [world]);
+
+  useLayoutEffect(() => {
+    document.body.classList.toggle("is-crossing-portal", isTransitioning);
+    return () => document.body.classList.remove("is-crossing-portal");
+  }, [isTransitioning]);
+
+  useLayoutEffect(() => {
+    if (!restoreAfterSwap.current) return;
+    restoreAfterSwap.current = false;
+
+    const destinationButton = world === WORLD.NOCTURNAL
+      ? nocturnalPortalButton.current
+      : classicPortalButton.current;
+    destinationButton?.focus({ preventScroll: true });
+
+    window.cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = window.requestAnimationFrame(() => {
+      window.scrollTo({
+        top: world === WORLD.NOCTURNAL ? 0 : classicScrollPosition.current,
+        behavior: "auto",
+      });
+    });
+  }, [world]);
+
+  useEffect(() => () => {
+    timers.current.forEach((timer) => window.clearTimeout(timer));
+    window.cancelAnimationFrame(scrollFrame.current);
+  }, []);
+
+  const crossPortal = () => {
+    if (isTransitioning || (world === WORLD.CLASSIC && !isNewWorldReady)) return;
+
+    const nextWorld = getNextWorld(world);
+    const timing = getPortalTiming(shouldReduceMotion);
+
+    if (world === WORLD.CLASSIC) {
+      classicScrollPosition.current = window.scrollY;
+    }
+
+    setDestination(nextWorld);
+    setIsTransitioning(true);
+
+    const swapTimer = window.setTimeout(() => {
+      restoreAfterSwap.current = true;
+      setWorld(nextWorld);
+      setIsTransitioning(false);
+      timers.current = [];
+    }, timing.swapMs);
+
+    timers.current = [swapTimer];
+  };
+
+  const portalControl = (
+    <MagicPortalButton
+      busy={isTransitioning}
+      buttonRef={classicPortalButton}
+      destinationReady={isNewWorldReady}
+      onActivate={crossPortal}
+      variant="classic"
+      world={world}
+    />
+  );
+
+  return (
+    <div className="portfolio-worlds" data-od-id="portfolio-worlds" data-world={world}>
+      {world === WORLD.CLASSIC && (
+        <div className="classic-world" data-od-id="classic-world">
+          <ClassicPortfolio portalControl={portalControl} />
+        </div>
+      )}
+
+      <iframe
+        className={`new-world-frame${world === WORLD.NOCTURNAL ? " is-active" : ""}`}
+        id="new-world-frame"
+        src={`${import.meta.env.BASE_URL}new-world/index.html`}
+        title="Ken He nocturnal portfolio"
+        aria-hidden={world !== WORLD.NOCTURNAL}
+        tabIndex={world === WORLD.NOCTURNAL ? 0 : -1}
+        data-od-id="new-world-frame"
+        data-ready={isNewWorldReady}
+        onLoad={() => setIsNewWorldReady(true)}
+      />
+
+      {world === WORLD.NOCTURNAL && (
+        <div className="portal-dock" data-od-id="nocturnal-portal-control">
+          <MagicPortalButton
+            busy={isTransitioning}
+            buttonRef={nocturnalPortalButton}
+            onActivate={crossPortal}
+            variant="nocturnal"
+            world={world}
+          />
+        </div>
+      )}
+
+      <PortalTransition
+        active={isTransitioning}
+        destination={destination}
+        reducedMotion={shouldReduceMotion}
+      />
+
+      <p className="sr-only" aria-live="polite">
+        {isTransitioning
+          ? `Entering the ${destination} portfolio.`
+          : `${world === WORLD.CLASSIC ? "Classic" : "Nocturnal"} portfolio active.`}
+      </p>
+    </div>
   );
 }
 

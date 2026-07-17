@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#fff6df" />
+    <meta
+      name="description"
+      content="An interactive portrait gallery where every animal follows your gaze."
+    />
+    <meta name="source" content="Faithful local study of wild-gaze-prompt-case.idmreg2020.chatgpt.site" />
+    <title>Eye Contact — Interactive Animal Portraits</title>
+    <script>
+      if (new URLSearchParams(window.location.search).get("mode") === "background") {
+        document.documentElement.dataset.mode = "background";
+      }
+    </script>
+    <style>
+      html[data-mode="background"],
+      html[data-mode="background"] body,
+      html[data-mode="background"] #app {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      html[data-mode="background"] .experience {
+        min-height: 100vh !important;
+      }
+
+      html[data-mode="background"] .experience > :not(.experience__smoke):not(.experience__veil),
+      html[data-mode="background"] .experience::before,
+      html[data-mode="background"] .experience::after {
+        display: none !important;
+      }
+
+      html[data-mode="background"] .experience__smoke {
+        position: fixed !important;
+        inset: -6% !important;
+        width: 112% !important;
+        height: 112% !important;
+      }
+    </style>
+    <script type="module" crossorigin src="./clone-assets/site.js"></script>
+    <link rel="stylesheet" crossorigin href="./clone-assets/site.css" />
+  </head>
+  <body data-od-id="wild-gaze-page">
+    <div id="app" data-od-id="wild-gaze-app"></div>
+    <script type="module">
+      const inspectableRegions = [
+        ["main.experience", "experience"],
+        [".site-header", "site-header"],
+        [".brand-lockup", "brand-lockup"],
+        [".hero__copy", "hero-copy"],
+        [".portrait-shell", "portrait-stage"],
+        [".site-footer", "site-footer"],
+        [".subject-info", "subject-info"],
+        [".animal-index", "animal-index"],
+        [".portrait-nav--previous", "previous-subject"],
+        [".portrait-nav--next", "next-subject"]
+      ];
+
+      requestAnimationFrame(() => {
+        for (const [selector, id] of inspectableRegions) {
+          document.querySelector(selector)?.setAttribute("data-od-id", id);
+        }
+        document.querySelectorAll(".animal-index button").forEach((button, index) => {
+          button.setAttribute("data-od-id", `subject-${index + 1}`);
+        });
+      });
+    </script>
+  </body>
+</html>
