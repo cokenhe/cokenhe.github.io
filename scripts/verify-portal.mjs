@@ -53,6 +53,19 @@ async function inspectPortalLayer(page) {
   });
 }
 
+async function waitForIntermediatePortalFrame(page, expectedPhase, endpointClip) {
+  await page.waitForFunction(
+    ({ phase, endpoint }) => {
+      const layer = document.querySelector('[data-od-id="new-world-layer"]');
+      if (layer?.dataset.phase !== phase) return false;
+      const clipPath = getComputedStyle(layer).clipPath;
+      return clipPath !== "none" && clipPath !== endpoint;
+    },
+    { phase: expectedPhase, endpoint: endpointClip },
+    { polling: "raf", timeout: 10_000 },
+  );
+}
+
 function requireIntermediateClip(state, endpointClip, label) {
   if (state.clipPath === "none" || state.clipPath === endpointClip) {
     throw new Error(`${label} clip is at an endpoint: ${state.clipPath}`);
@@ -200,7 +213,7 @@ async function verifyDetailedChromiumFlow(browser) {
       node.focus({ preventScroll: true });
       node.click();
     });
-    await page.waitForTimeout(350);
+    await waitForIntermediatePortalFrame(page, "opening", closedState.clipPath);
 
     const openingState = await inspectPortalLayer(page);
     requireLiveIntermediateState(openingState, "opening", closedState.clipPath, "Opening");
@@ -254,7 +267,7 @@ async function verifyDetailedChromiumFlow(browser) {
     }
 
     await nocturnalButton.click();
-    await page.waitForTimeout(350);
+    await waitForIntermediatePortalFrame(page, "closing", fullState.clipPath);
     const closingState = await inspectPortalLayer(page);
     requireLiveIntermediateState(closingState, "closing", fullState.clipPath, "Closing");
     if (closingState.childInteractive !== "false" || closingState.childInert !== true) {
