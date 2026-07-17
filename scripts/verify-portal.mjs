@@ -102,20 +102,84 @@ function requireLiveIntermediateState(state, expectedPhase, endpointClip, label)
   }
 }
 
-async function collectVisibilityThroughPhase(page, expectedPhase) {
-  return page.locator('[data-od-id="new-world-layer"]').evaluate((layer, phase) => (
-    new Promise((resolvePromise, reject) => {
-      const samples = [];
-      const deadline = performance.now() + 5_000;
-      const sample = () => {
-        samples.push(getComputedStyle(layer).visibility);
-        if (layer.dataset.phase === phase) return resolvePromise(samples);
-        if (performance.now() > deadline) return reject(new Error(`Portal did not reach ${phase}`));
-        requestAnimationFrame(sample);
-      };
-      sample();
-    })
-  ), expectedPhase);
+async function startPortalVisibilityTrace(page, transitionPhase, finalPhase) {
+  await page.evaluate(({ transition, final }) => {
+    const layer = document.querySelector('[data-od-id="new-world-layer"]');
+    const trace = {
+      transitionPhase: transition,
+      finalPhase: final,
+      started: false,
+      done: false,
+      samples: [],
+    };
+    window.__portalVisibilityTrace = trace;
+
+    const sample = () => {
+      const phase = layer?.dataset.phase;
+      trace.samples.push({
+        time: performance.now(),
+        phase,
+        clipPath: layer ? getComputedStyle(layer).clipPath : null,
+        visibility: layer ? getComputedStyle(layer).visibility : null,
+        classicVisible: Boolean(document.querySelector('[data-od-id="classic-world"]')?.getClientRects().length),
+      });
+      if (phase === transition) trace.started = true;
+      if (trace.started && phase === final) {
+        trace.done = true;
+        return;
+      }
+      requestAnimationFrame(sample);
+    };
+
+    sample();
+  }, { transition: transitionPhase, final: finalPhase });
+}
+
+async function finishPortalVisibilityTrace(page) {
+  await page.waitForFunction(
+    () => window.__portalVisibilityTrace?.done === true,
+    null,
+    { polling: "raf", timeout: 10_000 },
+  );
+  return page.evaluate(() => {
+    const trace = window.__portalVisibilityTrace;
+    delete window.__portalVisibilityTrace;
+    return trace;
+  });
+}
+
+function requirePortalVisibilityTrace(trace, initialPhase, transitionPhase, finalPhase, finalClip, label) {
+  const phases = [initialPhase, transitionPhase, finalPhase];
+  const samples = trace?.samples ?? [];
+  if (!trace?.started || !trace.done || samples.length < 3 || samples[0]?.phase !== initialPhase) {
+    throw new Error(`${label} visibility trace did not span the full transition: ${JSON.stringify(trace)}`);
+  }
+
+  let phaseIndex = 0;
+  for (const sample of samples) {
+    const nextIndex = phases.indexOf(sample.phase);
+    if (nextIndex < phaseIndex || nextIndex === -1) {
+      throw new Error(`${label} visibility trace changed phase out of order: ${JSON.stringify(samples)}`);
+    }
+    phaseIndex = nextIndex;
+    if (sample.visibility !== "visible" || !sample.classicVisible) {
+      throw new Error(`${label} hid or swapped a live world: ${JSON.stringify(sample)}`);
+    }
+  }
+
+  const transitionSamples = samples.filter((sample) => sample.phase === transitionPhase);
+  const finalSample = samples.at(-1);
+  if (!transitionSamples.length || finalSample.phase !== finalPhase || finalSample.clipPath !== finalClip) {
+    throw new Error(`${label} did not finish on the expected clipped frame: ${JSON.stringify(finalSample)}`);
+  }
+
+  return {
+    sampleCount: samples.length,
+    transitionSampleCount: transitionSamples.length,
+    phases: [...new Set(samples.map((sample) => sample.phase))],
+    first: samples[0],
+    final: finalSample,
+  };
 }
 
 async function verifyReadinessHandshake(browser) {
@@ -197,17 +261,73 @@ async function verifyDetailedChromiumFlow(browser) {
       width: node.offsetWidth,
       height: node.offsetHeight,
     }));
-    const irisTransforms = await peek.locator(".magic-portal-button__peek-iris").evaluateAll(
-      (nodes) => nodes.map((node) => getComputedStyle(node).transform),
-    );
+    const gazeMeasurements = await classicButton.evaluate((button) => {
+      const buttonRect = button.getBoundingClientRect();
+      const buttonCenter = {
+        x: buttonRect.left + buttonRect.width / 2,
+        y: buttonRect.top + buttonRect.height / 2,
+      };
+      const round = (value) => Math.round(value * 10_000) / 10_000;
+
+      return [...button.querySelectorAll(".magic-portal-button__peek-iris")].map((iris) => {
+        const eye = iris.closest(".magic-portal-button__peek-eye");
+        const side = eye?.classList.contains("magic-portal-button__peek-eye--left") ? "left" : "right";
+        const eyeRect = eye.getBoundingClientRect();
+        const irisRect = iris.getBoundingClientRect();
+        const eyeCenter = {
+          x: eyeRect.left + eyeRect.width / 2,
+          y: eyeRect.top + eyeRect.height / 2,
+        };
+        const irisCenter = {
+          x: irisRect.left + irisRect.width / 2,
+          y: irisRect.top + irisRect.height / 2,
+        };
+        const displacement = {
+          x: irisCenter.x - eyeCenter.x,
+          y: irisCenter.y - eyeCenter.y,
+        };
+        const target = {
+          x: buttonCenter.x - eyeCenter.x,
+          y: buttonCenter.y - eyeCenter.y,
+        };
+        const displacementLength = Math.hypot(displacement.x, displacement.y);
+        const targetLength = Math.hypot(target.x, target.y);
+        const transform = getComputedStyle(iris).transform;
+        const matrix = new DOMMatrixReadOnly(transform);
+
+        return {
+          side,
+          transform,
+          matrixTranslation: { x: round(matrix.m41), y: round(matrix.m42) },
+          displacement: { x: round(displacement.x), y: round(displacement.y) },
+          target: { x: round(target.x), y: round(target.y) },
+          inward: round(side === "left" ? displacement.x : -displacement.x),
+          downward: round(displacement.y),
+          alignment: round(
+            (displacement.x * target.x + displacement.y * target.y)
+              / (displacementLength * targetLength),
+          ),
+        };
+      });
+    });
+    const irisTransforms = gazeMeasurements.map((measurement) => measurement.transform);
     if (hiddenOpacity !== "0" || shownOpacity !== "1") {
       throw new Error(`Unexpected dog peek opacity: ${hiddenOpacity} -> ${shownOpacity}`);
     }
     if (JSON.stringify(buttonAfter) !== JSON.stringify(buttonBefore)) {
       throw new Error("The dog peek changed the magic button geometry.");
     }
-    if (irisTransforms.some((transform) => transform === "none")) {
-      throw new Error("The dog irises are not aimed toward the button.");
+    if (gazeMeasurements.length !== 2 || gazeMeasurements.some((measurement) => (
+      measurement.transform === "none"
+      || !Number.isFinite(measurement.matrixTranslation.x)
+      || !Number.isFinite(measurement.matrixTranslation.y)
+      || measurement.inward <= 0.5
+      || measurement.downward <= 0.5
+      || measurement.alignment <= 0.75
+      || (measurement.side === "left" ? measurement.target.x <= 0 : measurement.target.x >= 0)
+      || measurement.target.y <= 0
+    ))) {
+      throw new Error(`The dog irises are not aimed inward and down toward the button: ${JSON.stringify(gazeMeasurements)}`);
     }
 
     const sparkleAnimation = await classicButton
@@ -226,6 +346,7 @@ async function verifyDetailedChromiumFlow(browser) {
     await page.evaluate(() => window.scrollTo({ top: 900, behavior: "instant" }));
     await page.waitForTimeout(100);
     const classicScrollPosition = await page.evaluate(() => window.scrollY);
+    await startPortalVisibilityTrace(page, "opening", "nocturnal-idle");
     await classicButton.evaluate((node) => {
       node.focus({ preventScroll: true });
       node.click();
@@ -246,10 +367,7 @@ async function verifyDetailedChromiumFlow(browser) {
       animations: "allow",
     });
 
-    const openingVisibility = await collectVisibilityThroughPhase(page, "nocturnal-idle");
-    if (openingVisibility.some((visibility) => visibility !== "visible")) {
-      throw new Error(`The live destination was hidden at opening completion: ${openingVisibility.join(", ")}`);
-    }
+    const openingVisibilityTrace = await finishPortalVisibilityTrace(page);
     await waitForPortalState(page, "nocturnal", "nocturnal-idle", "Portal entry did not settle");
     await page.waitForFunction(() => {
       const body = document.querySelector('[data-od-id="new-world-frame"]')?.contentDocument?.body;
@@ -265,6 +383,14 @@ async function verifyDetailedChromiumFlow(browser) {
     if (fullState.visibility !== "visible" || fullState.childInteractive !== "true" || fullState.childInert !== false) {
       throw new Error(`The completed destination is not visibly interactive: ${JSON.stringify(fullState)}`);
     }
+    const openingVisibility = requirePortalVisibilityTrace(
+      openingVisibilityTrace,
+      "classic-idle",
+      "opening",
+      "nocturnal-idle",
+      fullState.clipPath,
+      "Opening",
+    );
 
     const nocturnalState = await page.locator('[data-od-id="new-world-frame"]').evaluate((frame) => {
       const child = frame.contentDocument;
@@ -281,6 +407,7 @@ async function verifyDetailedChromiumFlow(browser) {
       throw new Error(`Chromium did not preserve the interactive animal portfolio: ${JSON.stringify(nocturnalState)}`);
     }
 
+    await startPortalVisibilityTrace(page, "closing", "classic-idle");
     await nocturnalButton.click();
     const closingState = await waitForIntermediatePortalFrame(page, "closing", fullState.clipPath);
     requireLiveIntermediateState(closingState, "closing", fullState.clipPath, "Closing");
@@ -292,11 +419,26 @@ async function verifyDetailedChromiumFlow(browser) {
       fullPage: false,
       animations: "allow",
     });
+    const closingVisibilityTrace = await finishPortalVisibilityTrace(page);
     await waitForPortalState(page, "classic", "classic-idle", "Portal return did not settle");
     await page.waitForFunction(() => {
       const body = document.querySelector('[data-od-id="new-world-frame"]')?.contentDocument?.body;
       return body?.dataset.portalInteractive === "false" && body.inert === true;
     });
+    const returnedState = await inspectPortalLayer(page);
+    if (returnedState.phase !== "classic-idle" || returnedState.clipPath !== closedState.clipPath
+      || returnedState.visibility !== "visible" || returnedState.childInteractive !== "false"
+      || returnedState.childInert !== true || !returnedState.classicVisible) {
+      throw new Error(`Closing did not finish on the clipped classic world: ${JSON.stringify(returnedState)}`);
+    }
+    const closingVisibility = requirePortalVisibilityTrace(
+      closingVisibilityTrace,
+      "nocturnal-idle",
+      "closing",
+      "classic-idle",
+      closedState.clipPath,
+      "Closing",
+    );
 
     const returnedClassicButton = page.locator('nav [data-od-id="magic-portal-toggle"]');
     if (!(await returnedClassicButton.evaluate((node) => document.activeElement === node))) {
@@ -324,9 +466,12 @@ async function verifyDetailedChromiumFlow(browser) {
 
     return {
       browserErrors: browserErrors.length,
+      closingVisibility,
       focusHandoff: true,
+      gazeMeasurements,
       irisTransforms,
       nocturnalState,
+      openingVisibility,
       openingState,
       closingState,
       portalAnimation,
