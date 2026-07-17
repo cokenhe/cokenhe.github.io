@@ -31,14 +31,53 @@ test("the portal exposes accessible destination labels", async () => {
   });
 });
 
-test("the portal completes each world swap atomically at full cover", async () => {
-  assert(existsSync(modulePath), "portal state module should exist");
+test("the portal follows legal opening and closing phases", async () => {
+  const {
+    PORTAL_PHASE,
+    beginPortalTransition,
+    completePortalTransition,
+  } = await import(pathToFileURL(modulePath));
+
+  assert.equal(
+    beginPortalTransition(PORTAL_PHASE.CLASSIC_IDLE),
+    PORTAL_PHASE.OPENING,
+  );
+  assert.equal(
+    completePortalTransition(PORTAL_PHASE.OPENING),
+    PORTAL_PHASE.NOCTURNAL_IDLE,
+  );
+  assert.equal(
+    beginPortalTransition(PORTAL_PHASE.NOCTURNAL_IDLE),
+    PORTAL_PHASE.CLOSING,
+  );
+  assert.equal(
+    completePortalTransition(PORTAL_PHASE.CLOSING),
+    PORTAL_PHASE.CLASSIC_IDLE,
+  );
+  assert.throws(() => beginPortalTransition(PORTAL_PHASE.OPENING));
+  assert.throws(() => completePortalTransition(PORTAL_PHASE.CLASSIC_IDLE));
+});
+
+test("each portal phase exposes its world and transition state", async () => {
+  const {
+    PORTAL_PHASE,
+    WORLD,
+    getWorldForPortalPhase,
+    isPortalTransitioning,
+  } = await import(pathToFileURL(modulePath));
+
+  assert.equal(getWorldForPortalPhase(PORTAL_PHASE.CLASSIC_IDLE), WORLD.CLASSIC);
+  assert.equal(getWorldForPortalPhase(PORTAL_PHASE.OPENING), WORLD.CLASSIC);
+  assert.equal(getWorldForPortalPhase(PORTAL_PHASE.NOCTURNAL_IDLE), WORLD.NOCTURNAL);
+  assert.equal(getWorldForPortalPhase(PORTAL_PHASE.CLOSING), WORLD.NOCTURNAL);
+  assert.equal(isPortalTransitioning(PORTAL_PHASE.CLASSIC_IDLE), false);
+  assert.equal(isPortalTransitioning(PORTAL_PHASE.OPENING), true);
+  assert.equal(isPortalTransitioning(PORTAL_PHASE.CLOSING), true);
+});
+
+test("portal timing includes an animation duration and guarded fallback", async () => {
   const { getPortalTiming } = await import(pathToFileURL(modulePath));
 
-  const standard = getPortalTiming(false);
-  const reduced = getPortalTiming(true);
-
-  assert.deepEqual(standard, { swapMs: 680 });
-  assert.deepEqual(reduced, { swapMs: 120 });
-  assert(reduced.swapMs < standard.swapMs);
+  assert.deepEqual(getPortalTiming(false), { durationMs: 700, fallbackMs: 900 });
+  assert.deepEqual(getPortalTiming(true), { durationMs: 120, fallbackMs: 240 });
 });
