@@ -54,16 +54,33 @@ async function inspectPortalLayer(page) {
 }
 
 async function waitForIntermediatePortalFrame(page, expectedPhase, endpointClip) {
-  await page.waitForFunction(
+  const stateHandle = await page.waitForFunction(
     ({ phase, endpoint }) => {
       const layer = document.querySelector('[data-od-id="new-world-layer"]');
       if (layer?.dataset.phase !== phase) return false;
       const clipPath = getComputedStyle(layer).clipPath;
-      return clipPath !== "none" && clipPath !== endpoint;
+      if (clipPath === "none" || clipPath === endpoint) return false;
+      const child = layer.querySelector("iframe")?.contentDocument;
+      return {
+        phase: layer.dataset.phase,
+        clipPath,
+        visibility: getComputedStyle(layer).visibility,
+        childReady: child?.documentElement.classList.contains("is-ready") ?? false,
+        childInteractive: child?.body?.dataset.portalInteractive,
+        childInert: child?.body?.inert ?? null,
+        animals: child?.querySelectorAll('[data-od-id="animal-picker"] button').length ?? 0,
+        classicVisible: Boolean(document.querySelector('[data-od-id="classic-world"]')?.getClientRects().length),
+      };
     },
     { phase: expectedPhase, endpoint: endpointClip },
     { polling: "raf", timeout: 10_000 },
   );
+
+  try {
+    return await stateHandle.jsonValue();
+  } finally {
+    await stateHandle.dispose();
+  }
 }
 
 function requireIntermediateClip(state, endpointClip, label) {
@@ -213,9 +230,7 @@ async function verifyDetailedChromiumFlow(browser) {
       node.focus({ preventScroll: true });
       node.click();
     });
-    await waitForIntermediatePortalFrame(page, "opening", closedState.clipPath);
-
-    const openingState = await inspectPortalLayer(page);
+    const openingState = await waitForIntermediatePortalFrame(page, "opening", closedState.clipPath);
     requireLiveIntermediateState(openingState, "opening", closedState.clipPath, "Opening");
     if (openingState.childInteractive !== "false" || openingState.childInert !== true) {
       throw new Error(`The child became interactive before opening completed: ${JSON.stringify(openingState)}`);
@@ -267,8 +282,7 @@ async function verifyDetailedChromiumFlow(browser) {
     }
 
     await nocturnalButton.click();
-    await waitForIntermediatePortalFrame(page, "closing", fullState.clipPath);
-    const closingState = await inspectPortalLayer(page);
+    const closingState = await waitForIntermediatePortalFrame(page, "closing", fullState.clipPath);
     requireLiveIntermediateState(closingState, "closing", fullState.clipPath, "Closing");
     if (closingState.childInteractive !== "false" || closingState.childInert !== true) {
       throw new Error(`The child remained interactive while closing: ${JSON.stringify(closingState)}`);
