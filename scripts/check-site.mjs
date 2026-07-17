@@ -9,6 +9,7 @@ const requiredFiles = [
   "src/portal-state.mjs",
   "src/styles.css",
   "src/public/new-world/index.html",
+  "src/public/new-world/portal-bridge.mjs",
   "src/public/new-world/wild-gaze-clone-v1.html",
   "src/public/new-world/clone-assets/site.js",
   "src/public/new-world/clone-assets/animals/dog.png",
