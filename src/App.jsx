@@ -8,8 +8,13 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import MagicPortalButton from "./components/MagicPortalButton.jsx";
 import PortalTransition from "./components/PortalTransition.jsx";
 import {
+  beginPortalTransition,
+  completePortalTransition,
   getNextWorld,
   getPortalTiming,
+  getWorldForPortalPhase,
+  isPortalTransitioning,
+  PORTAL_PHASE,
   WORLD,
 } from "./portal-state.mjs";
 
@@ -473,16 +478,17 @@ function ClassicPortfolio({ portalControl }) {
 
 function App() {
   const shouldReduceMotion = Boolean(useReducedMotion());
-  const [world, setWorld] = useState(WORLD.CLASSIC);
-  const [destination, setDestination] = useState(WORLD.NOCTURNAL);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [portalPhase, setPortalPhase] = useState(PORTAL_PHASE.CLASSIC_IDLE);
   const [isNewWorldReady, setIsNewWorldReady] = useState(false);
+  const world = getWorldForPortalPhase(portalPhase);
+  const destination = getNextWorld(world);
+  const isTransitioning = isPortalTransitioning(portalPhase);
   const classicScrollPosition = useRef(0);
   const classicPortalButton = useRef(null);
   const nocturnalPortalButton = useRef(null);
+  const newWorldFrame = useRef(null);
   const restoreAfterSwap = useRef(false);
   const scrollFrame = useRef(0);
-  const timers = useRef([]);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.portfolioWorld = world;
@@ -500,7 +506,7 @@ function App() {
   }, [isTransitioning]);
 
   useLayoutEffect(() => {
-    if (!restoreAfterSwap.current) return;
+    if (!restoreAfterSwap.current || isTransitioning) return;
     restoreAfterSwap.current = false;
 
     const destinationButton = world === WORLD.NOCTURNAL
@@ -508,41 +514,75 @@ function App() {
       : classicPortalButton.current;
     destinationButton?.focus({ preventScroll: true });
 
-    window.cancelAnimationFrame(scrollFrame.current);
-    scrollFrame.current = window.requestAnimationFrame(() => {
-      window.scrollTo({
-        top: world === WORLD.NOCTURNAL ? 0 : classicScrollPosition.current,
-        behavior: "auto",
+    if (world === WORLD.CLASSIC) {
+      window.cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = window.requestAnimationFrame(() => {
+        window.scrollTo({
+          top: classicScrollPosition.current,
+          behavior: "auto",
+        });
       });
-    });
-  }, [world]);
+    }
+  }, [isTransitioning, portalPhase, world]);
+
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.source !== newWorldFrame.current?.contentWindow) return;
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.scope !== "ken-portfolio-portal") return;
+      if (event.data?.type !== "new-world-ready") return;
+      setIsNewWorldReady(true);
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  useEffect(() => {
+    if (!isNewWorldReady) return;
+    newWorldFrame.current?.contentWindow?.postMessage({
+      scope: "ken-portfolio-portal",
+      type: "set-interactive",
+      interactive: portalPhase === PORTAL_PHASE.NOCTURNAL_IDLE,
+    }, window.location.origin);
+  }, [isNewWorldReady, portalPhase]);
 
   useEffect(() => () => {
-    timers.current.forEach((timer) => window.clearTimeout(timer));
     window.cancelAnimationFrame(scrollFrame.current);
   }, []);
 
+  const finishPortalTransition = (expectedPhase) => {
+    setPortalPhase((currentPhase) => (
+      currentPhase === expectedPhase
+        ? completePortalTransition(currentPhase)
+        : currentPhase
+    ));
+  };
+
+  const handlePortalAnimationEnd = (event) => {
+    if (event.target !== event.currentTarget || !isTransitioning) return;
+    finishPortalTransition(portalPhase);
+  };
+
+  useEffect(() => {
+    if (!isTransitioning) return undefined;
+    const expectedPhase = portalPhase;
+    const fallback = window.setTimeout(
+      () => finishPortalTransition(expectedPhase),
+      getPortalTiming(shouldReduceMotion).fallbackMs,
+    );
+    return () => window.clearTimeout(fallback);
+  }, [isTransitioning, portalPhase, shouldReduceMotion]);
+
   const crossPortal = () => {
     if (isTransitioning || (world === WORLD.CLASSIC && !isNewWorldReady)) return;
-
-    const nextWorld = getNextWorld(world);
-    const timing = getPortalTiming(shouldReduceMotion);
-
     if (world === WORLD.CLASSIC) {
       classicScrollPosition.current = window.scrollY;
     }
-
-    setDestination(nextWorld);
-    setIsTransitioning(true);
-
-    const swapTimer = window.setTimeout(() => {
-      restoreAfterSwap.current = true;
-      setWorld(nextWorld);
-      setIsTransitioning(false);
-      timers.current = [];
-    }, timing.swapMs);
-
-    timers.current = [swapTimer];
+    restoreAfterSwap.current = true;
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setPortalPhase((currentPhase) => beginPortalTransition(currentPhase));
   };
 
   const portalControl = (
@@ -558,23 +598,33 @@ function App() {
 
   return (
     <div className="portfolio-worlds" data-od-id="portfolio-worlds" data-world={world}>
-      {world === WORLD.CLASSIC && (
-        <div className="classic-world" data-od-id="classic-world">
-          <ClassicPortfolio portalControl={portalControl} />
-        </div>
-      )}
+      <div
+        className="classic-world"
+        data-od-id="classic-world"
+        aria-hidden={portalPhase !== PORTAL_PHASE.CLASSIC_IDLE}
+        inert={portalPhase === PORTAL_PHASE.CLASSIC_IDLE ? undefined : ""}
+      >
+        <ClassicPortfolio portalControl={portalControl} />
+      </div>
 
-      <iframe
-        className={`new-world-frame${world === WORLD.NOCTURNAL ? " is-active" : ""}`}
-        id="new-world-frame"
-        src={`${import.meta.env.BASE_URL}new-world/index.html`}
-        title="Ken He nocturnal portfolio"
-        aria-hidden={world !== WORLD.NOCTURNAL}
-        tabIndex={world === WORLD.NOCTURNAL ? 0 : -1}
-        data-od-id="new-world-frame"
-        data-ready={isNewWorldReady}
-        onLoad={() => setIsNewWorldReady(true)}
-      />
+      <div
+        className={`new-world-layer new-world-layer--${portalPhase}`}
+        data-od-id="new-world-layer"
+        data-phase={portalPhase}
+        onAnimationEnd={handlePortalAnimationEnd}
+      >
+        <iframe
+          ref={newWorldFrame}
+          className="new-world-frame"
+          id="new-world-frame"
+          src={`${import.meta.env.BASE_URL}new-world/index.html`}
+          title="Ken He nocturnal portfolio"
+          aria-hidden={portalPhase !== PORTAL_PHASE.NOCTURNAL_IDLE}
+          tabIndex={portalPhase === PORTAL_PHASE.NOCTURNAL_IDLE ? 0 : -1}
+          data-od-id="new-world-frame"
+          data-ready={isNewWorldReady}
+        />
+      </div>
 
       {world === WORLD.NOCTURNAL && (
         <div className="portal-dock" data-od-id="nocturnal-portal-control">
@@ -589,8 +639,7 @@ function App() {
       )}
 
       <PortalTransition
-        active={isTransitioning}
-        destination={destination}
+        phase={portalPhase}
         reducedMotion={shouldReduceMotion}
       />
 

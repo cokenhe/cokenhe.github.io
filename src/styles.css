@@ -72,23 +72,37 @@ body.is-crossing-portal {
   z-index: 1;
 }
 
-.new-world-frame {
+.new-world-layer {
   position: fixed;
   inset: 0;
   z-index: 40;
+  overflow: hidden;
+  clip-path: circle(0 at 50% 50%);
+  pointer-events: none;
+  will-change: clip-path;
+  contain: layout paint style;
+  transform: translateZ(0);
+}
+
+.new-world-layer--opening {
+  animation: portal-world-open 700ms cubic-bezier(0.2, 0.72, 0.15, 1) both;
+}
+
+.new-world-layer--nocturnal-idle {
+  clip-path: circle(150vmax at 50% 50%);
+  pointer-events: auto;
+}
+
+.new-world-layer--closing {
+  animation: portal-world-close 700ms cubic-bezier(0.55, 0.02, 0.8, 0.35) both;
+}
+
+.new-world-frame {
+  display: block;
   width: 100%;
   height: 100%;
   border: 0;
   background: #172125;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.new-world-frame.is-active {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
 }
 
 .scroll-progress {
@@ -364,12 +378,6 @@ body.is-crossing-portal {
   pointer-events: none;
 }
 
-.portal-transition--classic {
-  --portal-center: #ffffff;
-  --portal-mid: #dff4ef;
-  --portal-edge: #0f766e;
-}
-
 .portal-transition.is-active {
   visibility: visible;
   pointer-events: auto;
@@ -381,22 +389,23 @@ body.is-crossing-portal {
   top: 50%;
   width: 10vmax;
   aspect-ratio: 1;
-  border: 2px solid color-mix(in srgb, var(--portal-center) 72%, transparent);
+  border: 2px solid color-mix(in srgb, var(--portal-center) 78%, transparent);
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 36% 30%, var(--portal-center) 0 5%, transparent 23%),
-    radial-gradient(circle at center, var(--portal-mid) 0 20%, var(--portal-edge) 58%, #071719 100%);
+  background: transparent;
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--portal-center) 20%, transparent),
-    0 0 42px 12px color-mix(in srgb, var(--portal-mid) 50%, transparent),
-    inset 0 0 34px color-mix(in srgb, var(--portal-center) 60%, transparent);
+    0 0 28px 8px color-mix(in srgb, var(--portal-mid) 55%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--portal-center) 42%, transparent);
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.02);
   will-change: transform, opacity, filter;
 }
 
-.portal-transition.is-active .portal-transition__disc {
-  animation: portal-shake-expand 680ms cubic-bezier(0.2, 0.72, 0.15, 1) both;
+.portal-transition--opening.is-active .portal-transition__disc {
+  animation: portal-rim-open 700ms cubic-bezier(0.2, 0.72, 0.15, 1) both;
+}
+
+.portal-transition--closing.is-active .portal-transition__disc {
+  animation: portal-rim-close 700ms cubic-bezier(0.55, 0.02, 0.8, 0.35) both;
 }
 
 .portal-transition__disc::before,
@@ -482,16 +491,37 @@ body.is-crossing-portal {
   78% { opacity: 0; transform: translate3d(0, -9px, 0) scale(0.7) rotate(72deg); }
 }
 
-@keyframes portal-shake-expand {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.02) rotate(0); filter: blur(1px) brightness(1); }
-  8% { opacity: 1; transform: translate(-50%, -50%) scale(0.08) rotate(-2deg); }
-  14% { transform: translate(calc(-50% - 7px), calc(-50% + 3px)) scale(0.12) rotate(3deg); }
-  20% { transform: translate(calc(-50% + 8px), calc(-50% - 5px)) scale(0.16) rotate(-4deg); }
-  26% { transform: translate(calc(-50% - 10px), calc(-50% - 2px)) scale(0.2) rotate(5deg); }
-  32% { transform: translate(calc(-50% + 7px), calc(-50% + 6px)) scale(0.25) rotate(-4deg); }
-  40% { transform: translate(calc(-50% - 4px), calc(-50% + 2px)) scale(0.34) rotate(2deg); filter: blur(0) brightness(1.18); }
-  50% { transform: translate(-50%, -50%) scale(0.52) rotate(0); }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(32) rotate(12deg); filter: brightness(0.92); }
+@keyframes portal-world-open {
+  0% { clip-path: circle(0 at 50% 50%); }
+  12% { clip-path: circle(1.2vmax at calc(50% - 7px) calc(50% + 3px)); }
+  20% { clip-path: circle(2.4vmax at calc(50% + 8px) calc(50% - 5px)); }
+  30% { clip-path: circle(4.8vmax at calc(50% - 8px) calc(50% + 5px)); }
+  42% { clip-path: circle(10vmax at 50% 50%); }
+  100% { clip-path: circle(150vmax at 50% 50%); }
+}
+
+@keyframes portal-world-close {
+  0% { clip-path: circle(150vmax at 50% 50%); }
+  58% { clip-path: circle(10vmax at 50% 50%); }
+  72% { clip-path: circle(4.8vmax at calc(50% + 7px) calc(50% - 4px)); }
+  84% { clip-path: circle(2.1vmax at calc(50% - 6px) calc(50% + 3px)); }
+  100% { clip-path: circle(0 at 50% 50%); }
+}
+
+@keyframes portal-rim-open {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.02); }
+  8% { opacity: 1; }
+  14% { transform: translate(calc(-50% - 7px), calc(-50% + 3px)) scale(0.12); }
+  26% { transform: translate(calc(-50% + 8px), calc(-50% - 5px)) scale(0.28); }
+  42% { transform: translate(-50%, -50%) scale(2); }
+  100% { opacity: 0.2; transform: translate(-50%, -50%) scale(30); }
+}
+
+@keyframes portal-rim-close {
+  0% { opacity: 0.2; transform: translate(-50%, -50%) scale(30); }
+  58% { opacity: 1; transform: translate(-50%, -50%) scale(2); }
+  78% { transform: translate(calc(-50% - 6px), calc(-50% + 3px)) scale(0.28); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.02); }
 }
 
 @keyframes portal-ring-pulse {
@@ -503,10 +533,14 @@ body.is-crossing-portal {
   to { opacity: 1; transform: scale(1.15); }
 }
 
-@keyframes portal-reduced-expand {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.02); }
-  55% { opacity: 1; transform: translate(-50%, -50%) scale(24); }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(30); }
+@keyframes portal-world-open-reduced {
+  from { clip-path: circle(0 at 50% 50%); }
+  to { clip-path: circle(150vmax at 50% 50%); }
+}
+
+@keyframes portal-world-close-reduced {
+  from { clip-path: circle(150vmax at 50% 50%); }
+  to { clip-path: circle(0 at 50% 50%); }
 }
 
 .hero {
@@ -1000,7 +1034,19 @@ li + li {
     transition: opacity 120ms linear, transform 120ms linear;
   }
 
-  .portal-transition.is-active .portal-transition__disc {
-    animation: portal-reduced-expand 120ms linear both !important;
+  .new-world-layer--opening {
+    animation: portal-world-open-reduced 120ms linear both !important;
+  }
+
+  .new-world-layer--closing {
+    animation: portal-world-close-reduced 120ms linear both !important;
+  }
+
+  .portal-transition--opening.is-active .portal-transition__disc {
+    animation: portal-rim-open 120ms linear both !important;
+  }
+
+  .portal-transition--closing.is-active .portal-transition__disc {
+    animation: portal-rim-close 120ms linear both !important;
   }
 }

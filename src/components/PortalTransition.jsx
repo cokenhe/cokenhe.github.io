@@ -1,10 +1,12 @@
-function PortalTransition({ active, destination, reducedMotion }) {
+function PortalTransition({ phase, reducedMotion }) {
+  const active = phase === "opening" || phase === "closing";
   return (
     <div
-      className={`portal-transition portal-transition--${destination}${active ? " is-active" : ""}${reducedMotion ? " is-reduced" : ""}`}
+      className={`portal-transition portal-transition--${phase}${active ? " is-active" : ""}${reducedMotion ? " is-reduced" : ""}`}
       aria-hidden="true"
       data-od-id="portal-transition"
       data-state={active ? "active" : "idle"}
+      data-direction={active ? phase : "idle"}
     >
       <div className="portal-transition__disc">
         <span className="portal-transition__ring portal-transition__ring--outer" />

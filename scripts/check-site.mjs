@@ -57,7 +57,14 @@ for (const text of requiredText) {
 }
 
 for (const [source, markers] of [
-  [app, ["ClassicPortfolio", "new-world/index.html", "data-world={world}", "crossPortal"]],
+  [app, [
+    "ClassicPortfolio",
+    "new-world/index.html",
+    "data-world={world}",
+    "PORTAL_PHASE",
+    "onAnimationEnd={handlePortalAnimationEnd}",
+    "ken-portfolio-portal",
+  ]],
   [magicButton, [
     "magic-portal-button__spark",
     "data-world-target",
@@ -66,11 +73,16 @@ for (const [source, markers] of [
     "new-world/clone-assets/animals/dog.png",
     "aria-hidden=\"true\"",
   ]],
-  [portalTransition, ["portal-transition__disc", "data-state", "destination"]],
+  [portalTransition, [
+    "portal-transition__disc",
+    "data-state",
+    "phase",
+  ]],
   [portalState, ["Enter the nocturnal portfolio", "Return to the classic portfolio", "REDUCED_TIMING"]],
   [styles, [
-    "@keyframes portal-shake-expand",
-    "scale(32)",
+    "@keyframes portal-world-open",
+    "@keyframes portal-world-close",
+    "clip-path: circle(150vmax",
     "@keyframes magic-spark",
     "prefers-reduced-motion",
     ".magic-portal-button__peek-eye",
