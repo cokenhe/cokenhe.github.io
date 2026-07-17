@@ -160,7 +160,7 @@ git commit -m "refactor: model portal transition phases"
 ### Task 2: Add a paint-readiness and child-input bridge
 
 **Files:**
-- Create: `src/public/new-world/portal-bridge.js`
+- Create: `src/public/new-world/portal-bridge.mjs`
 - Create: `tests/portal-bridge.test.mjs`
 - Modify: `src/public/new-world/index.html`
 - Modify: `scripts/check-site.mjs`
@@ -180,7 +180,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 
-const bridgeUrl = pathToFileURL(resolve("src/public/new-world/portal-bridge.js"));
+const bridgeUrl = pathToFileURL(resolve("src/public/new-world/portal-bridge.mjs"));
 
 test("the child accepts only exact same-origin parent messages", async () => {
   const { PORTAL_SCOPE, isTrustedHostMessage } = await import(bridgeUrl);
@@ -216,7 +216,7 @@ test("the child makes its document inert and blurs retained focus", async () => 
 });
 ```
 
-Add `src/public/new-world/portal-bridge.js` to `requiredFiles` in `scripts/check-site.mjs` before implementing it.
+Add `src/public/new-world/portal-bridge.mjs` to `requiredFiles` in `scripts/check-site.mjs` before implementing it.
 
 - [ ] **Step 2: Run tests and confirm RED**
 
@@ -226,7 +226,7 @@ Expected: FAIL because the bridge module does not exist.
 
 - [ ] **Step 3: Implement the bridge helpers and runtime**
 
-Create `src/public/new-world/portal-bridge.js` with these exported boundaries and an iframe-only initializer:
+Create `src/public/new-world/portal-bridge.mjs` with these exported boundaries and an iframe-only initializer:
 
 ```js
 export const PORTAL_SCOPE = "ken-portfolio-portal";
@@ -313,7 +313,7 @@ if (typeof window !== "undefined" && typeof document !== "undefined") {
 At the bottom of `src/public/new-world/index.html`, immediately before `</body>`, add:
 
 ```html
-<script type="module" src="portal-bridge.js"></script>
+<script type="module" src="portal-bridge.mjs"></script>
 ```
 
 Do not alter the animal picker, gaze code, WebGL iframe, content, or assets.
@@ -327,7 +327,7 @@ Expected: bridge tests and structural checks PASS.
 - [ ] **Step 6: Commit the child bridge**
 
 ```bash
-git add src/public/new-world/index.html src/public/new-world/portal-bridge.js tests/portal-bridge.test.mjs scripts/check-site.mjs
+git add src/public/new-world/index.html src/public/new-world/portal-bridge.mjs tests/portal-bridge.test.mjs scripts/check-site.mjs
 git commit -m "feat: coordinate portal iframe readiness"
 ```
 
@@ -612,6 +612,7 @@ const crossPortal = () => {
   if (isTransitioning || (world === WORLD.CLASSIC && !isNewWorldReady)) return;
   if (world === WORLD.CLASSIC) classicScrollPosition.current = window.scrollY;
   restoreAfterSwap.current = true;
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   setPortalPhase((currentPhase) => beginPortalTransition(currentPhase));
 };
 ```
@@ -850,7 +851,7 @@ Add exact reduced-motion overrides and keep the existing body overflow locking:
 
 Run: `npm test && npm run build`
 
-Expected: all tests PASS and Vite produces the GitHub Pages build with copied `new-world/portal-bridge.js`.
+Expected: all tests PASS and Vite produces the GitHub Pages build with copied `new-world/portal-bridge.mjs`.
 
 - [ ] **Step 8: Commit the live reveal**
 
@@ -893,18 +894,26 @@ await page.waitForFunction(() => {
 
 Assert the classic button remains disabled before the handshake and enables only afterward.
 
+Delete the later `transitionCapturePage.route("**/new-world/index.html", ...)` blank-document stub. The capture page must load the real child bridge and wait for `data-ready === "true"`; a blank iframe can no longer satisfy readiness.
+
 - [ ] **Step 3: Verify the dog peek without moving the button**
 
 Before opening, capture the button and peek state, then hover:
 
 ```js
-const buttonBefore = await classicButton.boundingBox();
+const buttonBefore = await classicButton.evaluate((node) => ({
+  width: node.offsetWidth,
+  height: node.offsetHeight,
+}));
 const peek = classicButton.locator(".magic-portal-button__peek");
 const hiddenOpacity = await peek.evaluate((node) => getComputedStyle(node).opacity);
 await classicButton.hover();
 await page.waitForTimeout(450);
 const shownOpacity = await peek.evaluate((node) => getComputedStyle(node).opacity);
-const buttonAfter = await classicButton.boundingBox();
+const buttonAfter = await classicButton.evaluate((node) => ({
+  width: node.offsetWidth,
+  height: node.offsetHeight,
+}));
 const irisTransforms = await peek.locator(".magic-portal-button__peek-iris").evaluateAll(
   (nodes) => nodes.map((node) => getComputedStyle(node).transform),
 );
