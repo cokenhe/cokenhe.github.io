@@ -1,4 +1,39 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
+
+const ROOT_ABSOLUTE_RUNTIME_ASSET = /(["'`])\/assets\/[^"'`]+\.(?:avif|gif|jpe?g|png|svg|webp)\1/g;
+
+function findCssBlock(source, marker) {
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex === -1) return null;
+
+  const openIndex = source.indexOf("{", markerIndex + marker.length);
+  if (openIndex === -1) return null;
+
+  let depth = 0;
+  for (let index = openIndex; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] !== "}") continue;
+    depth -= 1;
+    if (depth === 0) {
+      return {
+        end: index + 1,
+        source: source.slice(markerIndex, index + 1),
+        start: markerIndex,
+      };
+    }
+  }
+
+  return null;
+}
+
+function listJavaScriptFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = resolve(directory, entry.name);
+    if (entry.isDirectory()) return listJavaScriptFiles(entryPath);
+    return entry.isFile() && entry.name.endsWith(".js") ? [entryPath] : [];
+  });
+}
 
 const requiredFiles = [
   "package.json",
@@ -32,6 +67,38 @@ const magicButton = readFileSync("src/components/MagicPortalButton.jsx", "utf8")
 const portalTransition = readFileSync("src/components/PortalTransition.jsx", "utf8");
 const portalState = readFileSync("src/portal-state.mjs", "utf8");
 
+const rootAbsoluteSourceAsset = app.match(ROOT_ABSOLUTE_RUNTIME_ASSET)?.[0];
+if (rootAbsoluteSourceAsset) {
+  throw new Error(`Root-absolute runtime asset bypasses Vite BASE_URL: ${rootAbsoluteSourceAsset}`);
+}
+
+const finePointerMedia = "@media (hover: hover) and (pointer: fine)";
+const finePointerBlock = findCssBlock(styles, finePointerMedia);
+if (!finePointerBlock) {
+  throw new Error(`Missing exact portal hover capability query: ${finePointerMedia}`);
+}
+
+for (const selector of [
+  ".magic-portal-button:hover:not(:disabled)",
+  ".magic-portal-button--classic:hover:not(:disabled) .magic-portal-button__peek",
+]) {
+  if (!finePointerBlock.source.includes(selector)) {
+    throw new Error(`Portal hover selector is not fine-pointer gated: ${selector}`);
+  }
+}
+
+const stylesOutsideFinePointerBlock = styles.slice(0, finePointerBlock.start)
+  + styles.slice(finePointerBlock.end);
+if (/\.magic-portal-button[^,{]*:hover/.test(stylesOutsideFinePointerBlock)) {
+  throw new Error("Portal hover behavior exists outside the fine-pointer capability query");
+}
+
+if (!stylesOutsideFinePointerBlock.includes(
+  ".magic-portal-button--classic:focus-visible .magic-portal-button__peek",
+)) {
+  throw new Error("Keyboard dog reveal must remain separate from the pointer capability query");
+}
+
 const requiredText = [
   "framer-motion",
   "Built internal admin and customer-facing portals from the ground up",
@@ -47,9 +114,10 @@ const requiredText = [
   "Crafted bespoke mobile applications for prominent enterprises",
   "useScroll",
   "useTransform",
-  "/assets/1-f96675d8.webp",
-  "/assets/1-c5138d7f.webp",
-  "/assets/2-b5e6e141.webp",
+  "1-f96675d8.webp",
+  "1-c5138d7f.webp",
+  "2-b5e6e141.webp",
+  "import.meta.env.BASE_URL",
 ];
 
 for (const text of requiredText) {
@@ -92,7 +160,7 @@ for (const [source, markers] of [
     "@keyframes magic-spark",
     "prefers-reduced-motion",
     ".magic-portal-button__peek-eye",
-    "@media (hover: hover)",
+    finePointerMedia,
     ".magic-portal-button--classic:focus-visible .magic-portal-button__peek",
   ]],
 ]) {
@@ -128,4 +196,28 @@ const localRefs = [...index.matchAll(/(?:href|src)="([^"]+)"/g)]
 
 for (const ref of localRefs) {
   if (!existsSync(ref)) throw new Error(`Missing local reference: ${ref}`);
+}
+
+const buildDirectoryFlag = process.argv.indexOf("--build-dir");
+if (buildDirectoryFlag !== -1) {
+  const buildDirectoryArgument = process.argv[buildDirectoryFlag + 1];
+  if (!buildDirectoryArgument) throw new Error("--build-dir requires a directory path");
+
+  const buildDirectory = resolve(buildDirectoryArgument);
+  if (!existsSync(buildDirectory)) throw new Error(`Missing build directory: ${buildDirectory}`);
+
+  const builtJavaScriptFiles = listJavaScriptFiles(buildDirectory);
+  if (!builtJavaScriptFiles.length) {
+    throw new Error(`Build directory contains no JavaScript bundles: ${buildDirectory}`);
+  }
+
+  for (const builtFile of builtJavaScriptFiles) {
+    const builtSource = readFileSync(builtFile, "utf8");
+    const rootAbsoluteBuiltAsset = builtSource.match(ROOT_ABSOLUTE_RUNTIME_ASSET)?.[0];
+    if (rootAbsoluteBuiltAsset) {
+      throw new Error(
+        `Built bundle retains a root-absolute runtime asset (${builtFile}): ${rootAbsoluteBuiltAsset}`,
+      );
+    }
+  }
 }

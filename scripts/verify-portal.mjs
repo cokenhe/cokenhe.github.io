@@ -43,6 +43,7 @@ async function inspectPortalLayer(page) {
     return {
       phase: layer.dataset.phase,
       clipPath: getComputedStyle(layer).clipPath,
+      opacity: getComputedStyle(layer).opacity,
       visibility: getComputedStyle(layer).visibility,
       childReady: child?.documentElement.classList.contains("is-ready") ?? false,
       childInteractive: child?.body?.dataset.portalInteractive,
@@ -61,6 +62,7 @@ async function waitForIntermediatePortalFrame(page, expectedPhase, endpointClip)
       const clipPath = getComputedStyle(layer).clipPath;
       if (clipPath === "none" || clipPath === endpoint) return false;
       const child = layer.querySelector("iframe")?.contentDocument;
+      const rim = document.querySelector('[data-od-id="portal-transition"] .portal-transition__disc');
       return {
         phase: layer.dataset.phase,
         clipPath,
@@ -70,6 +72,7 @@ async function waitForIntermediatePortalFrame(page, expectedPhase, endpointClip)
         childInert: child?.body?.inert ?? null,
         animals: child?.querySelectorAll('[data-od-id="animal-picker"] button').length ?? 0,
         classicVisible: Boolean(document.querySelector('[data-od-id="classic-world"]')?.getClientRects().length),
+        portalAnimation: rim ? getComputedStyle(rim).animationName : null,
       };
     },
     { phase: expectedPhase, endpoint: endpointClip },
@@ -330,6 +333,44 @@ async function verifyDetailedChromiumFlow(browser) {
       throw new Error(`The dog irises are not aimed inward and down toward the button: ${JSON.stringify(gazeMeasurements)}`);
     }
 
+    await page.mouse.move(0, 0);
+    await page.waitForFunction(
+      () => getComputedStyle(
+        document.querySelector('nav [data-od-id="magic-portal-toggle"] .magic-portal-button__peek'),
+      ).opacity === "0",
+    );
+    const hiddenAfterPointerExit = await peek.evaluate((node) => getComputedStyle(node).opacity);
+
+    let keyboardTabCount = 0;
+    while (keyboardTabCount < 20 && !(await classicButton.evaluate(
+      (node) => document.activeElement === node,
+    ))) {
+      await page.keyboard.press("Tab");
+      keyboardTabCount += 1;
+    }
+    await page.waitForFunction(() => {
+      const button = document.querySelector('nav [data-od-id="magic-portal-toggle"]');
+      const dog = button?.querySelector(".magic-portal-button__peek");
+      return document.activeElement === button
+        && button.matches(":focus-visible")
+        && getComputedStyle(dog).opacity === "1";
+    });
+    const focusReveal = await classicButton.evaluate((node) => ({
+      focusVisible: node.matches(":focus-visible"),
+      height: node.offsetHeight,
+      opacity: getComputedStyle(node.querySelector(".magic-portal-button__peek")).opacity,
+      width: node.offsetWidth,
+    }));
+    if (hiddenAfterPointerExit !== "0" || !focusReveal.focusVisible || focusReveal.opacity !== "1") {
+      throw new Error(`Keyboard focus did not reveal the dog after pointer exit: ${JSON.stringify({
+        focusReveal,
+        hiddenAfterPointerExit,
+      })}`);
+    }
+    if (focusReveal.width !== buttonBefore.width || focusReveal.height !== buttonBefore.height) {
+      throw new Error("The keyboard dog reveal changed the magic button geometry.");
+    }
+
     const sparkleAnimation = await classicButton
       .locator(".magic-portal-button__spark--one")
       .evaluate((node) => getComputedStyle(node).animationName);
@@ -356,8 +397,7 @@ async function verifyDetailedChromiumFlow(browser) {
     if (openingState.childInteractive !== "false" || openingState.childInert !== true) {
       throw new Error(`The child became interactive before opening completed: ${JSON.stringify(openingState)}`);
     }
-    const portalAnimation = await page.locator('[data-od-id="portal-transition"] .portal-transition__disc')
-      .evaluate((node) => getComputedStyle(node).animationName);
+    const portalAnimation = openingState.portalAnimation;
     if (!portalAnimation.includes("portal-rim-open")) {
       throw new Error(`The centered portal is missing its opening animation (${portalAnimation}).`);
     }
@@ -467,6 +507,11 @@ async function verifyDetailedChromiumFlow(browser) {
     return {
       browserErrors: browserErrors.length,
       closingVisibility,
+      focusReveal: {
+        ...focusReveal,
+        hiddenAfterPointerExit,
+        keyboardTabCount,
+      },
       focusHandoff: true,
       gazeMeasurements,
       irisTransforms,
@@ -484,6 +529,117 @@ async function verifyDetailedChromiumFlow(browser) {
   }
 }
 
+async function beginReducedAnimationCapture(page, direction) {
+  await page.evaluate((captureDirection) => {
+    const captures = [];
+    const handler = (event) => {
+      if (!event.animationName.endsWith("-reduced")) return;
+      const animation = event.target.getAnimations()
+        .find((candidate) => candidate.animationName === event.animationName);
+      if (!animation?.effect) return;
+
+      const computed = getComputedStyle(event.target);
+      const computedTiming = animation.effect.getComputedTiming();
+      captures.push({
+        animationName: event.animationName,
+        computedDuration: computed.animationDuration,
+        direction: captureDirection,
+        durationMs: Number(computedTiming.duration),
+        frames: animation.effect.getKeyframes().map((frame) => ({
+          clipPath: frame.clipPath ?? null,
+          easing: frame.easing,
+          offset: frame.offset,
+          opacity: frame.opacity ?? null,
+          transform: frame.transform ?? null,
+        })),
+        target: event.target.matches('[data-od-id="new-world-layer"]')
+          ? "world"
+          : event.target.matches(".portal-transition__disc") ? "rim" : "other",
+        timingFunction: computed.animationTimingFunction,
+      });
+    };
+
+    window.__reducedAnimationCapture = { captures, handler };
+    document.addEventListener("animationstart", handler, true);
+  }, direction);
+}
+
+async function finishReducedAnimationCapture(page) {
+  await page.waitForFunction(() => {
+    const captures = window.__reducedAnimationCapture?.captures ?? [];
+    return captures.some((capture) => capture.target === "world")
+      && captures.some((capture) => capture.target === "rim");
+  }, null, { polling: "raf", timeout: 5_000 });
+
+  return page.evaluate(() => {
+    const capture = window.__reducedAnimationCapture;
+    document.removeEventListener("animationstart", capture.handler, true);
+    delete window.__reducedAnimationCapture;
+    return capture.captures;
+  });
+}
+
+function requireReducedMotionTransition(captures, direction) {
+  const worldName = `portal-world-${direction}-reduced`;
+  const rimName = `portal-rim-${direction}-reduced`;
+  const world = captures.find((capture) => capture.animationName === worldName);
+  const rim = captures.find((capture) => capture.animationName === rimName);
+  if (!world || !rim) {
+    throw new Error(`Reduced ${direction} animations were not both captured: ${JSON.stringify(captures)}`);
+  }
+
+  for (const animation of [world, rim]) {
+    if (animation.durationMs !== 120 || animation.computedDuration !== "0.12s") {
+      throw new Error(`Reduced ${direction} duration is not 120ms: ${JSON.stringify(animation)}`);
+    }
+    if (animation.timingFunction === "linear" || !animation.timingFunction.startsWith("cubic-bezier(")) {
+      throw new Error(`Reduced ${direction} easing is not responsive: ${animation.timingFunction}`);
+    }
+    if (JSON.stringify(animation.frames).includes("calc(")) {
+      throw new Error(`Reduced ${direction} retains an off-center shake: ${JSON.stringify(animation.frames)}`);
+    }
+  }
+
+  const centeredClipPattern = /^circle\(([\d.]+)px at 50% 50%\)$/;
+  const centeredClipRadii = world.frames.map((frame) => (
+    Number(frame.clipPath?.match(centeredClipPattern)?.[1])
+  ));
+  const viewportCoverRadius = Math.hypot(1280, 800) / 2;
+  if (world.frames.length < 2
+    || new Set(world.frames.map((frame) => frame.clipPath)).size !== 1
+    || centeredClipRadii.some((radius) => !Number.isFinite(radius) || radius < viewportCoverRadius)) {
+    throw new Error(`Reduced ${direction} world is not a full centered opacity reveal: ${JSON.stringify(world.frames)}`);
+  }
+
+  const expectedOpacity = direction === "open" ? [0, 1] : [1, 0];
+  const worldOpacity = [
+    Number(world.frames.at(0).opacity),
+    Number(world.frames.at(-1).opacity),
+  ];
+  if (worldOpacity.some((opacity, index) => opacity !== expectedOpacity[index])) {
+    throw new Error(`Reduced ${direction} world is not opacity-led: ${JSON.stringify(world.frames)}`);
+  }
+
+  const rimScales = rim.frames.map((frame) => {
+    if (!/^translate\(-50%,\s*-50%\) scale\([\d.]+\)$/.test(frame.transform ?? "")) {
+      throw new Error(`Reduced ${direction} rim is not centered: ${JSON.stringify(rim.frames)}`);
+    }
+    return Number(frame.transform.match(/scale\(([\d.]+)\)/)?.[1]);
+  });
+  const rimScaleDelta = Math.max(...rimScales) - Math.min(...rimScales);
+  if (rimScales.some((scale) => !Number.isFinite(scale) || scale < 0.85 || scale > 1.15)
+    || rimScaleDelta > 0.15) {
+    throw new Error(`Reduced ${direction} rim scale is too large: ${JSON.stringify(rimScales)}`);
+  }
+
+  return {
+    rim,
+    rimScaleDelta: Math.round(rimScaleDelta * 1_000) / 1_000,
+    world,
+    worldOpacity,
+  };
+}
+
 async function verifyReducedMotion(browser) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   try {
@@ -492,19 +648,146 @@ async function verifyReducedMotion(browser) {
     await page.waitForFunction(() => (
       document.querySelector('[data-od-id="new-world-frame"]')?.dataset.ready === "true"
     ));
+
+    await beginReducedAnimationCapture(page, "open");
     await page.locator('nav [data-od-id="magic-portal-toggle"]').click();
-    const reducedDuration = await page.locator('[data-od-id="new-world-layer"]').evaluate(
-      (layer) => getComputedStyle(layer).animationDuration,
+    const openingAnimations = requireReducedMotionTransition(
+      await finishReducedAnimationCapture(page),
+      "open",
     );
-    if (reducedDuration !== "0.12s") {
-      throw new Error(`Reduced portal duration is ${reducedDuration}, expected 0.12s.`);
-    }
     await waitForPortalState(page, "nocturnal", "nocturnal-idle", "Reduced-motion entry did not settle");
+    await page.waitForFunction(() => {
+      const button = document.querySelector('[data-od-id="nocturnal-portal-control"] button');
+      const body = document.querySelector('[data-od-id="new-world-frame"]')?.contentDocument?.body;
+      return document.activeElement === button
+        && body?.dataset.portalInteractive === "true"
+        && body.inert === false;
+    });
+    const openingSettled = await inspectPortalLayer(page);
+
+    await beginReducedAnimationCapture(page, "close");
     await page.locator('[data-od-id="nocturnal-portal-control"] button').click();
+    const closingAnimations = requireReducedMotionTransition(
+      await finishReducedAnimationCapture(page),
+      "close",
+    );
     await waitForPortalState(page, "classic", "classic-idle", "Reduced-motion return did not settle");
-    return reducedDuration;
+    await page.waitForFunction(() => {
+      const button = document.querySelector('nav [data-od-id="magic-portal-toggle"]');
+      const body = document.querySelector('[data-od-id="new-world-frame"]')?.contentDocument?.body;
+      return document.activeElement === button
+        && body?.dataset.portalInteractive === "false"
+        && body.inert === true;
+    });
+    const closingSettled = await inspectPortalLayer(page);
+
+    return {
+      closing: { ...closingAnimations, settled: closingSettled },
+      focusHandoff: true,
+      opening: { ...openingAnimations, settled: openingSettled },
+    };
   } finally {
     await page.close();
+  }
+}
+
+async function verifyTouchNoHover(browser) {
+  const context = await browser.newContext({
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
+  const browserErrors = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => browserErrors.push(error.message));
+
+  try {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => (
+      document.querySelector('[data-od-id="new-world-frame"]')?.dataset.ready === "true"
+    ));
+
+    const button = page.locator('nav [data-od-id="magic-portal-toggle"]');
+    const peek = button.locator(".magic-portal-button__peek");
+    const initial = await button.evaluate((node) => ({
+      height: node.offsetHeight,
+      peekOpacity: getComputedStyle(node.querySelector(".magic-portal-button__peek")).opacity,
+      transform: getComputedStyle(node).transform,
+      width: node.offsetWidth,
+    }));
+    const capabilities = await page.evaluate(() => ({
+      finePointerHover: matchMedia("(hover: hover) and (pointer: fine)").matches,
+      hover: matchMedia("(hover: hover)").matches,
+      pointerFine: matchMedia("(pointer: fine)").matches,
+    }));
+    if (capabilities.finePointerHover || capabilities.hover || capabilities.pointerFine) {
+      throw new Error(`Touch context unexpectedly matches fine-pointer hover: ${JSON.stringify(capabilities)}`);
+    }
+
+    await button.hover();
+    await page.waitForTimeout(450);
+    const syntheticHover = await button.evaluate((node) => ({
+      matchesHover: node.matches(":hover"),
+      peekOpacity: getComputedStyle(node.querySelector(".magic-portal-button__peek")).opacity,
+      transform: getComputedStyle(node).transform,
+    }));
+    if (syntheticHover.peekOpacity !== "0" || syntheticHover.transform !== initial.transform) {
+      throw new Error(`Synthetic hover animated the touch portal: ${JSON.stringify({ initial, syntheticHover })}`);
+    }
+
+    await page.mouse.move(0, 0);
+    await button.evaluate((node) => {
+      node.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }, { capture: true, once: true });
+    });
+    await button.tap();
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    await page.waitForTimeout(450);
+
+    const touchState = await page.evaluate(() => {
+      const portalButton = document.querySelector('nav [data-od-id="magic-portal-toggle"]');
+      const dog = portalButton?.querySelector(".magic-portal-button__peek");
+      return {
+        buttonHeight: portalButton?.offsetHeight,
+        buttonVisible: Boolean(portalButton?.getClientRects().length),
+        buttonWidth: portalButton?.offsetWidth,
+        focusVisible: portalButton?.matches(":focus-visible") ?? false,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        peekOpacity: dog ? getComputedStyle(dog).opacity : null,
+      };
+    });
+    if (touchState.peekOpacity !== "0" || touchState.focusVisible) {
+      throw new Error(`Touch interaction left the dog peek visible: ${JSON.stringify(touchState)}`);
+    }
+    if (touchState.buttonWidth !== initial.width || touchState.buttonHeight !== initial.height) {
+      throw new Error(`Touch interaction changed the portal geometry: ${JSON.stringify({ initial, touchState })}`);
+    }
+    if (!touchState.buttonVisible || touchState.overflow > 1) {
+      throw new Error(`Touch portal is hidden or overflowing: ${JSON.stringify(touchState)}`);
+    }
+    if (await peek.evaluate((node) => getComputedStyle(node).opacity) !== "0") {
+      throw new Error("The dog peek became stuck after the touch sequence.");
+    }
+    if (browserErrors.length) {
+      throw new Error(`Touch browser errors: ${browserErrors.join(" | ")}`);
+    }
+
+    return {
+      browserErrors: browserErrors.length,
+      capabilities,
+      initial,
+      syntheticHover,
+      touchState,
+    };
+  } finally {
+    await context.close();
   }
 }
 
@@ -545,11 +828,13 @@ async function verifyEngine(browserType, engineName, checkCanvas) {
 
 const chromiumBrowser = await chromium.launch();
 let detailed;
-let reducedDuration;
+let reducedMotion;
+let touchNoHover;
 try {
   await verifyReadinessHandshake(chromiumBrowser);
   detailed = await verifyDetailedChromiumFlow(chromiumBrowser);
-  reducedDuration = await verifyReducedMotion(chromiumBrowser);
+  reducedMotion = await verifyReducedMotion(chromiumBrowser);
+  touchNoHover = await verifyTouchNoHover(chromiumBrowser);
 } finally {
   await chromiumBrowser.close();
 }
@@ -562,7 +847,8 @@ console.log(JSON.stringify({
   url,
   screenshotDirectory,
   readinessHandshake: true,
-  reducedDuration,
+  reducedMotion,
+  touchNoHover,
   engines: {
     Chromium: chromiumSmoke,
     WebKit: webkitSmoke,

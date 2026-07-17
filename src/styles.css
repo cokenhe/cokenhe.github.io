@@ -189,15 +189,6 @@ body.is-crossing-portal {
   animation: magic-aura-spin 5s linear infinite;
 }
 
-.magic-portal-button:hover:not(:disabled) {
-  transform: translateY(-2px) scale(1.02);
-  border-color: color-mix(in srgb, var(--magic-fg) 58%, transparent);
-  box-shadow:
-    0 14px 34px var(--magic-glow),
-    0 0 0 4px color-mix(in srgb, var(--magic-fg) 8%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
-}
-
 .magic-portal-button:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--magic-fg) 44%, transparent);
   outline-offset: 3px;
@@ -262,7 +253,16 @@ body.is-crossing-portal {
   transform: translate(-50%, -50%) translate(var(--peek-gaze-x, 0), 3px);
 }
 
-@media (hover: hover) {
+@media (hover: hover) and (pointer: fine) {
+  .magic-portal-button:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.02);
+    border-color: color-mix(in srgb, var(--magic-fg) 58%, transparent);
+    box-shadow:
+      0 14px 34px var(--magic-glow),
+      0 0 0 4px color-mix(in srgb, var(--magic-fg) 8%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  }
+
   .magic-portal-button--classic:hover:not(:disabled) .magic-portal-button__peek {
     opacity: 1;
     transform: translate3d(-50%, 0, 0) rotate(-3deg) scale(1);
@@ -525,13 +525,13 @@ body.is-crossing-portal {
 }
 
 @keyframes portal-rim-open-reduced {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.02); }
-  to { opacity: 0.2; transform: translate(-50%, -50%) scale(30); }
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.94); }
+  to { opacity: 0.18; transform: translate(-50%, -50%) scale(1.06); }
 }
 
 @keyframes portal-rim-close-reduced {
-  from { opacity: 0.2; transform: translate(-50%, -50%) scale(30); }
-  to { opacity: 0; transform: translate(-50%, -50%) scale(0.02); }
+  from { opacity: 0.18; transform: translate(-50%, -50%) scale(1.06); }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(0.94); }
 }
 
 @keyframes portal-ring-pulse {
@@ -544,13 +544,13 @@ body.is-crossing-portal {
 }
 
 @keyframes portal-world-open-reduced {
-  from { clip-path: circle(0 at 50% 50%); }
-  to { clip-path: circle(150vmax at 50% 50%); }
+  from { clip-path: circle(150vmax at 50% 50%); opacity: 0; }
+  to { clip-path: circle(150vmax at 50% 50%); opacity: 1; }
 }
 
 @keyframes portal-world-close-reduced {
-  from { clip-path: circle(150vmax at 50% 50%); }
-  to { clip-path: circle(0 at 50% 50%); }
+  from { clip-path: circle(150vmax at 50% 50%); opacity: 1; }
+  to { clip-path: circle(150vmax at 50% 50%); opacity: 0; }
 }
 
 .hero {
@@ -1041,22 +1041,22 @@ li + li {
   }
 
   .magic-portal-button__peek {
-    transition: opacity 120ms linear, transform 120ms linear;
+    transition: opacity 120ms cubic-bezier(0.23, 1, 0.32, 1);
   }
 
   .new-world-layer--opening {
-    animation: portal-world-open-reduced 120ms linear both !important;
+    animation: portal-world-open-reduced 120ms cubic-bezier(0.23, 1, 0.32, 1) both !important;
   }
 
   .new-world-layer--closing {
-    animation: portal-world-close-reduced 120ms linear both !important;
+    animation: portal-world-close-reduced 120ms cubic-bezier(0.23, 1, 0.32, 1) both !important;
   }
 
   .portal-transition--opening.is-active .portal-transition__disc {
-    animation: portal-rim-open-reduced 120ms linear both !important;
+    animation: portal-rim-open-reduced 120ms cubic-bezier(0.23, 1, 0.32, 1) both !important;
   }
 
   .portal-transition--closing.is-active .portal-transition__disc {
-    animation: portal-rim-close-reduced 120ms linear both !important;
+    animation: portal-rim-close-reduced 120ms cubic-bezier(0.23, 1, 0.32, 1) both !important;
   }
 }

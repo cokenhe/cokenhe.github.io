@@ -105,17 +105,19 @@ const stackGroups = [
   ["Delivery", "Git, GitHub Actions, CI/CD, Netlify deployments, preview deployments, rollbacks, Jira"],
 ];
 
+const classicAssetUrl = (fileName) => `${import.meta.env.BASE_URL}assets/${fileName}`;
+
 const projectImages = [
   {
-    src: "/assets/1-f96675d8.webp",
+    src: classicAssetUrl("1-f96675d8.webp"),
     alt: "Mobile operational dashboard screenshot",
   },
   {
-    src: "/assets/1-c5138d7f.webp",
+    src: classicAssetUrl("1-c5138d7f.webp"),
     alt: "Live commerce mobile product screenshot",
   },
   {
-    src: "/assets/2-b5e6e141.webp",
+    src: classicAssetUrl("2-b5e6e141.webp"),
     alt: "Caregiver mobile app analytics screenshot",
   },
 ];
@@ -123,7 +125,7 @@ const projectImages = [
 const projects = [
   {
     title: "Boutir",
-    image: "/assets/1-c5138d7f.webp",
+    image: classicAssetUrl("1-c5138d7f.webp"),
     description: "Swift, Kotlin, TypeScript, React Native, Appium, and WebDriverIO",
     links: [
       ["iOS", "https://apps.apple.com/hk/app/id917526274?l=en"],
@@ -137,7 +139,7 @@ const projects = [
   },
   {
     title: "Wonderfam",
-    image: "/assets/2-b5e6e141.webp",
+    image: classicAssetUrl("2-b5e6e141.webp"),
     description: "Dart, Flutter, Firebase, and Jira",
     links: [
       ["iOS", "https://apps.apple.com/hk/app/id1493163920?l=en"],
@@ -150,7 +152,7 @@ const projects = [
   },
   {
     title: "HKIE GED",
-    image: "/assets/2-5db7f57e.webp",
+    image: classicAssetUrl("2-5db7f57e.webp"),
     description: "Swift, Kotlin, JavaScript, Angular, ExpressJS, Firebase, and AWS",
     links: [
       ["iOS", "https://apps.apple.com/hk/app/id1225551220?l=en"],
