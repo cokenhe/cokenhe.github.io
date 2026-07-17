@@ -13,6 +13,7 @@ React owns the navigation magic button, accessible world state, reduced-motion t
 
 ```bash
 npm install
+npx playwright install chromium webkit
 npm run dev
 ```
 
@@ -22,7 +23,10 @@ Open the URL printed by Vite (normally `http://127.0.0.1:5173/`).
 
 ```bash
 npm run build
-npm run preview
+npm run preview -- --host 127.0.0.1 --port 4173
+
+# In another terminal:
+npm run test:e2e -- http://127.0.0.1:4173/
 ```
 
 ## Build into the Open Design project root
@@ -40,7 +44,11 @@ Open `http://127.0.0.1:8125/`.
 ```bash
 npm test
 npm run verify
-node scripts/verify-portal.mjs http://127.0.0.1:8125/
+npm audit --audit-level=high
 ```
 
-The parent project also exposes `npm run verify:portal` and `npm run verify:new-world` while its preview server is running.
+`npm run test:e2e` launches project-owned Playwright and checks the live readiness
+handshake, dog peek and gaze, intermediate opening and closing clips, child
+interactivity, focus and scroll restoration, reduced motion, the 390×844 mobile
+layout, Chromium, and WebKit. Screenshots from the detailed Chromium flow are
+written to a temporary directory reported by the command.
