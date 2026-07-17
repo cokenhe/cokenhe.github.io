@@ -14,6 +14,9 @@ dist-site
 dist-open-design
 *.local
 
+# Local agent execution state
+.superpowers/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
