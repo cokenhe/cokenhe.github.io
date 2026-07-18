@@ -54,6 +54,94 @@ async function inspectPortalLayer(page) {
   });
 }
 
+async function inspectFirstSectionLayout(page) {
+  return page.locator('[data-od-id="new-world-frame"]').evaluate((frame) => {
+    const child = frame.contentDocument;
+    const query = (selector) => {
+      const node = child?.querySelector(selector);
+      if (!node) throw new Error(`Missing nocturnal layout node: ${selector}`);
+      return node;
+    };
+    const rect = (node) => {
+      const bounds = node.getBoundingClientRect();
+      return {
+        top: bounds.top,
+        right: bounds.right,
+        bottom: bounds.bottom,
+        left: bounds.left,
+        width: bounds.width,
+        height: bounds.height,
+      };
+    };
+    const animal = rect(query(".animal"));
+    const eyebrow = rect(query(".hero .eyebrow"));
+    const header = rect(query(".site-header"));
+    const heroNode = query(".hero");
+    const hero = rect(heroNode);
+    const impact = rect(query("#impact"));
+    const metrics = rect(query(".metric-rail"));
+    const picker = rect(query(".animal-picker"));
+    const heroStyle = getComputedStyle(heroNode);
+    const heroPaddingTop = Number.parseFloat(heroStyle.paddingTop);
+
+    return {
+      animal,
+      eyebrow,
+      eyebrowHeaderGap: eyebrow.top - header.bottom,
+      header,
+      headerHeight: header.height,
+      hero,
+      heroPaddingOffset: heroPaddingTop - header.height,
+      heroPaddingTop,
+      heroPosition: heroStyle.position,
+      horizontalOverflow: Math.max(
+        child.documentElement.scrollWidth,
+        child.body?.scrollWidth ?? 0,
+      ) - child.documentElement.clientWidth,
+      impact,
+      metrics,
+      picker,
+      viewportHeight: frame.contentWindow.innerHeight,
+      viewportWidth: frame.contentWindow.innerWidth,
+    };
+  });
+}
+
+function requireDesktopFirstSectionLayout(layout) {
+  const paddingOffsetIsValid = Number.isFinite(layout.heroPaddingOffset)
+    && layout.heroPaddingOffset >= 16
+    && layout.heroPaddingOffset <= 32;
+  const eyebrowGapIsValid = Number.isFinite(layout.eyebrowHeaderGap)
+    && layout.eyebrowHeaderGap >= 8
+    && layout.eyebrowHeaderGap <= 40;
+  const heroFitsViewport = layout.hero.bottom <= layout.viewportHeight + 1;
+  const animalFitsViewport = layout.animal.bottom <= layout.viewportHeight + 1;
+  const pickerPrecedesMetrics = layout.picker.bottom < layout.metrics.top;
+  const metricsAreWithinHero = layout.metrics.top >= layout.hero.top - 1
+    && layout.metrics.bottom <= layout.hero.bottom + 1;
+  const impactFollowsHero = layout.impact.top >= layout.hero.bottom;
+
+  if (layout.heroPosition !== "relative" || !paddingOffsetIsValid || !eyebrowGapIsValid
+    || !heroFitsViewport || !animalFitsViewport || !pickerPrecedesMetrics
+    || !metricsAreWithinHero || !impactFollowsHero) {
+    throw new Error(`The nocturnal first section does not fit the desktop viewport: ${JSON.stringify(layout)}`);
+  }
+}
+
+function requireTabletFirstSectionLayout(layout) {
+  const paddingOffsetIsValid = Number.isFinite(layout.heroPaddingOffset)
+    && layout.heroPaddingOffset >= 16
+    && layout.heroPaddingOffset <= 32;
+  const metricsAreWithinHero = layout.metrics.top >= layout.hero.top - 1
+    && layout.metrics.bottom <= layout.hero.bottom + 1;
+  const metricsPrecedeImpact = layout.metrics.bottom <= layout.impact.top + 1;
+
+  if (!paddingOffsetIsValid || !metricsAreWithinHero || !metricsPrecedeImpact
+    || layout.horizontalOverflow > 1) {
+    throw new Error(`The nocturnal first section breaks at 900px: ${JSON.stringify(layout)}`);
+  }
+}
+
 async function waitForIntermediatePortalFrame(page, expectedPhase, endpointClip) {
   const stateHandle = await page.waitForFunction(
     ({ phase, endpoint }) => {
@@ -119,12 +207,31 @@ async function startPortalVisibilityTrace(page, transitionPhase, finalPhase) {
 
     const sample = () => {
       const phase = layer?.dataset.phase;
+      const rim = document.querySelector('[data-od-id="portal-transition"] .portal-transition__disc');
+      const rimStyle = rim ? getComputedStyle(rim) : null;
+      const rimBounds = rim?.getBoundingClientRect();
+      let rimScale = null;
+      if (rimStyle?.transform && rimStyle.transform !== "none") {
+        try {
+          const matrix = new DOMMatrixReadOnly(rimStyle.transform);
+          rimScale = Math.hypot(matrix.a, matrix.b);
+        } catch {
+          rimScale = null;
+        }
+      }
       trace.samples.push({
         time: performance.now(),
         phase,
         clipPath: layer ? getComputedStyle(layer).clipPath : null,
         visibility: layer ? getComputedStyle(layer).visibility : null,
         classicVisible: Boolean(document.querySelector('[data-od-id="classic-world"]')?.getClientRects().length),
+        rim: rimStyle && rimBounds ? {
+          diameter: Math.max(rimBounds.width, rimBounds.height),
+          opacity: Number(rimStyle.opacity),
+          scale: rimScale,
+          transform: rimStyle.transform,
+          viewportDiagonal: Math.hypot(innerWidth, innerHeight),
+        } : null,
       });
       if (phase === transition) trace.started = true;
       if (trace.started && phase === final) {
@@ -168,6 +275,10 @@ function requirePortalVisibilityTrace(trace, initialPhase, transitionPhase, fina
     if (sample.visibility !== "visible" || !sample.classicVisible) {
       throw new Error(`${label} hid or swapped a live world: ${JSON.stringify(sample)}`);
     }
+    if (sample.rim?.opacity > 0.02
+      && sample.rim.diameter > sample.rim.viewportDiagonal + 1) {
+      throw new Error(`${label} paints an oversized decorated rim: ${JSON.stringify(sample)}`);
+    }
   }
 
   const transitionSamples = samples.filter((sample) => sample.phase === transitionPhase);
@@ -176,12 +287,105 @@ function requirePortalVisibilityTrace(trace, initialPhase, transitionPhase, fina
     throw new Error(`${label} did not finish on the expected clipped frame: ${JSON.stringify(finalSample)}`);
   }
 
+  const rimSamples = samples.filter((sample) => sample.rim);
+  const visibleRimSamples = rimSamples.filter((sample) => sample.rim.opacity > 0.02);
+  const maximum = (rimTrace, field) => (
+    rimTrace.length ? Math.max(...rimTrace.map((sample) => sample.rim[field])) : null
+  );
+
   return {
     sampleCount: samples.length,
     transitionSampleCount: transitionSamples.length,
     phases: [...new Set(samples.map((sample) => sample.phase))],
     first: samples[0],
     final: finalSample,
+    rim: {
+      maximumDiameter: maximum(rimSamples, "diameter"),
+      maximumScale: maximum(rimSamples, "scale"),
+      maximumVisibleDiameter: maximum(visibleRimSamples, "diameter"),
+      maximumVisibleScale: maximum(visibleRimSamples, "scale"),
+      viewportDiagonal: rimSamples[0]?.rim.viewportDiagonal ?? null,
+    },
+  };
+}
+
+async function beginStandardRimAnimationCapture(page, direction) {
+  await page.evaluate((captureDirection) => {
+    const expectedAnimationName = `portal-rim-${captureDirection}`;
+    const capture = {
+      animationName: null,
+      direction: captureDirection,
+      frames: [],
+      target: null,
+    };
+    const handler = (event) => {
+      if (event.animationName !== expectedAnimationName) return;
+      const animation = event.target.getAnimations()
+        .find((candidate) => candidate.animationName === expectedAnimationName);
+      if (!animation?.effect) return;
+
+      capture.animationName = event.animationName;
+      capture.frames = animation.effect.getKeyframes().map((frame) => ({
+        offset: frame.offset,
+        opacity: frame.opacity ?? null,
+        transform: frame.transform ?? null,
+      }));
+      capture.target = event.target.matches(".portal-transition__disc") ? "rim" : "other";
+    };
+
+    window.__standardRimAnimationCapture = { capture, handler };
+    document.addEventListener("animationstart", handler, true);
+  }, direction);
+}
+
+async function finishStandardRimAnimationCapture(page) {
+  await page.waitForFunction(
+    () => window.__standardRimAnimationCapture?.capture.frames.length > 0,
+    null,
+    { polling: "raf", timeout: 5_000 },
+  );
+
+  return page.evaluate(() => {
+    const state = window.__standardRimAnimationCapture;
+    document.removeEventListener("animationstart", state.handler, true);
+    delete window.__standardRimAnimationCapture;
+    return state.capture;
+  });
+}
+
+function requireLightweightPortalRim(capture, direction) {
+  const expectedAnimationName = `portal-rim-${direction}`;
+  if (capture.animationName !== expectedAnimationName || capture.target !== "rim") {
+    throw new Error(`The ${direction} rim animation was not captured: ${JSON.stringify(capture)}`);
+  }
+
+  const frames = capture.frames.map((frame) => ({
+    offset: frame.offset,
+    opacity: frame.opacity === null ? null : Number(frame.opacity),
+    scale: Number(frame.transform?.match(/scale\(\s*([\d.]+)\s*\)/)?.[1]),
+    transform: frame.transform,
+  }));
+  const scaleFrames = frames.filter((frame) => Number.isFinite(frame.scale));
+  if (!scaleFrames.length) {
+    throw new Error(`The ${direction} rim has unparseable scale keyframes: ${JSON.stringify(frames)}`);
+  }
+
+  const maximumScale = Math.max(...scaleFrames.map((frame) => frame.scale));
+  const maximumFrames = scaleFrames.filter((frame) => frame.scale === maximumScale);
+  const largeFrames = scaleFrames.filter((frame) => frame.scale >= 8);
+  if (!maximumFrames.length || maximumFrames.some((frame) => frame.opacity !== 0)) {
+    throw new Error(`The ${direction} rim paints at its maximum scale: ${JSON.stringify(frames)}`);
+  }
+  if (!largeFrames.length || largeFrames.some((frame) => frame.opacity !== 0)) {
+    throw new Error(`The ${direction} rim paints at scale 8 or larger: ${JSON.stringify(frames)}`);
+  }
+
+  return {
+    animationName: capture.animationName,
+    frames,
+    largeFrames,
+    maximumScale,
+    scaleFrames,
   };
 }
 
@@ -260,6 +464,51 @@ async function verifyDetailedChromiumFlow(browser) {
     await classicButton.hover();
     await page.waitForTimeout(450);
     const shownOpacity = await peek.evaluate((node) => getComputedStyle(node).opacity);
+    const peekGeometry = await classicButton.evaluate((button) => {
+      const buttonRect = button.getBoundingClientRect();
+      const peekNode = button.querySelector(".magic-portal-button__peek");
+      const imageNode = button.querySelector(".magic-portal-button__peek-animal");
+      const peekRect = peekNode.getBoundingClientRect();
+      const imageRect = imageNode.getBoundingClientRect();
+      const bounds = (rect) => ({
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      });
+      const overlap = {
+        x: Math.max(
+          0,
+          Math.min(buttonRect.right, imageRect.right) - Math.max(buttonRect.left, imageRect.left),
+        ),
+        y: Math.max(
+          0,
+          Math.min(buttonRect.bottom, imageRect.bottom) - Math.max(buttonRect.top, imageRect.top),
+        ),
+      };
+
+      return {
+        button: bounds(buttonRect),
+        buttonCenter: {
+          x: buttonRect.left + buttonRect.width / 2,
+          y: buttonRect.top + buttonRect.height / 2,
+        },
+        image: bounds(imageRect),
+        imageCenter: {
+          x: imageRect.left + imageRect.width / 2,
+          y: imageRect.top + imageRect.height / 2,
+        },
+        overlap,
+        peek: {
+          ...bounds(peekRect),
+          overflow: getComputedStyle(peekNode).overflow,
+          zIndex: Number(getComputedStyle(peekNode).zIndex),
+        },
+        viewport: { width: innerWidth, height: innerHeight },
+      };
+    });
     const buttonAfter = await classicButton.evaluate((node) => ({
       width: node.offsetWidth,
       height: node.offsetHeight,
@@ -320,17 +569,33 @@ async function verifyDetailedChromiumFlow(browser) {
     if (JSON.stringify(buttonAfter) !== JSON.stringify(buttonBefore)) {
       throw new Error("The dog peek changed the magic button geometry.");
     }
+    const dogIsFullyFramed = peekGeometry.image.left >= 0
+      && peekGeometry.image.top >= 0
+      && peekGeometry.image.right <= peekGeometry.viewport.width
+      && peekGeometry.image.bottom <= peekGeometry.viewport.height;
+    const dogIsBehindButton = Number.isFinite(peekGeometry.peek.zIndex)
+      && peekGeometry.peek.zIndex < 0;
+    const dogIsTopRight = peekGeometry.imageCenter.x > peekGeometry.buttonCenter.x
+      && peekGeometry.imageCenter.y < peekGeometry.buttonCenter.y;
+    const dogSizeIsValid = peekGeometry.image.width >= 48
+      && peekGeometry.image.width <= peekGeometry.button.width * 0.6;
+    if (!dogIsFullyFramed || !dogIsBehindButton || peekGeometry.peek.overflow !== "visible"
+      || !dogIsTopRight || !dogSizeIsValid
+      || peekGeometry.overlap.x <= 0 || peekGeometry.overlap.y <= 0) {
+      throw new Error(`The dog peek is not fully framed behind the button: ${JSON.stringify(peekGeometry)}`);
+    }
     if (gazeMeasurements.length !== 2 || gazeMeasurements.some((measurement) => (
       measurement.transform === "none"
       || !Number.isFinite(measurement.matrixTranslation.x)
       || !Number.isFinite(measurement.matrixTranslation.y)
-      || measurement.inward <= 0.5
-      || measurement.downward <= 0.5
-      || measurement.alignment <= 0.75
-      || (measurement.side === "left" ? measurement.target.x <= 0 : measurement.target.x >= 0)
+      || !Number.isFinite(measurement.alignment)
+      || measurement.displacement.x >= -0.5
+      || measurement.displacement.y <= 0.5
+      || measurement.alignment <= 0.85
+      || measurement.target.x >= 0
       || measurement.target.y <= 0
     ))) {
-      throw new Error(`The dog irises are not aimed inward and down toward the button: ${JSON.stringify(gazeMeasurements)}`);
+      throw new Error(`The dog irises are not aimed left and down toward the button: ${JSON.stringify(gazeMeasurements)}`);
     }
 
     await page.mouse.move(0, 0);
@@ -388,10 +653,15 @@ async function verifyDetailedChromiumFlow(browser) {
     await page.waitForTimeout(100);
     const classicScrollPosition = await page.evaluate(() => window.scrollY);
     await startPortalVisibilityTrace(page, "opening", "nocturnal-idle");
+    await beginStandardRimAnimationCapture(page, "open");
     await classicButton.evaluate((node) => {
       node.focus({ preventScroll: true });
       node.click();
     });
+    const openingRimAnimation = requireLightweightPortalRim(
+      await finishStandardRimAnimationCapture(page),
+      "open",
+    );
     const openingState = await waitForIntermediatePortalFrame(page, "opening", closedState.clipPath);
     requireLiveIntermediateState(openingState, "opening", closedState.clipPath, "Opening");
     if (openingState.childInteractive !== "false" || openingState.childInert !== true) {
@@ -432,6 +702,25 @@ async function verifyDetailedChromiumFlow(browser) {
       "Opening",
     );
 
+    const firstSectionLayout = await inspectFirstSectionLayout(page);
+    requireDesktopFirstSectionLayout(firstSectionLayout);
+
+    await page.setViewportSize({ width: 900, height: 900 });
+    await page.waitForFunction(() => {
+      const frame = document.querySelector('[data-od-id="new-world-frame"]');
+      return frame?.contentWindow?.innerWidth === 900
+        && frame.contentWindow.innerHeight === 900;
+    });
+    const tabletFirstSectionLayout = await inspectFirstSectionLayout(page);
+    requireTabletFirstSectionLayout(tabletFirstSectionLayout);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.waitForFunction(() => {
+      const frame = document.querySelector('[data-od-id="new-world-frame"]');
+      return frame?.contentWindow?.innerWidth === 1440
+        && frame.contentWindow.innerHeight === 900;
+    });
+
     const nocturnalState = await page.locator('[data-od-id="new-world-frame"]').evaluate((frame) => {
       const child = frame.contentDocument;
       const liquid = child?.querySelector('[data-od-id="liquid-glass-background"]')?.contentDocument;
@@ -448,7 +737,12 @@ async function verifyDetailedChromiumFlow(browser) {
     }
 
     await startPortalVisibilityTrace(page, "closing", "classic-idle");
+    await beginStandardRimAnimationCapture(page, "close");
     await nocturnalButton.click();
+    const closingRimAnimation = requireLightweightPortalRim(
+      await finishStandardRimAnimationCapture(page),
+      "close",
+    );
     const closingState = await waitForIntermediatePortalFrame(page, "closing", fullState.clipPath);
     requireLiveIntermediateState(closingState, "closing", fullState.clipPath, "Closing");
     if (closingState.childInteractive !== "false" || closingState.childInert !== true) {
@@ -515,14 +809,21 @@ async function verifyDetailedChromiumFlow(browser) {
       focusHandoff: true,
       gazeMeasurements,
       irisTransforms,
+      firstSectionLayout,
       nocturnalState,
       openingVisibility,
       openingState,
+      peekGeometry,
       closingState,
       portalAnimation,
       responsiveState,
       scrollRestored: restoredScrollPosition,
       sparkleAnimation,
+      standardRimAnimations: {
+        closing: closingRimAnimation,
+        opening: openingRimAnimation,
+      },
+      tabletFirstSectionLayout,
     };
   } finally {
     await page.close();
