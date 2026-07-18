@@ -26,6 +26,15 @@ const contactLinks = [
   { label: "GitHub", href: "https://github.com/cokenhe" },
 ];
 
+const EXTERNAL_LINK_PROPS = Object.freeze({
+  rel: "noopener noreferrer",
+  target: "_blank",
+});
+
+function getExternalLinkProps(href) {
+  return /^https?:\/\//.test(href) ? EXTERNAL_LINK_PROPS : {};
+}
+
 const metrics = [
   ["20", "childcare campuses supported"],
   ["4,000+", "parent users supported"],
@@ -231,7 +240,12 @@ function ClassicPortfolio({ portalControl }) {
         </a>
         <nav aria-label="Contact and sections">
           {contactLinks.map((link) => (
-            <motion.a key={link.href} href={link.href} whileHover={{ y: -2 }}>
+            <motion.a
+              key={link.href}
+              href={link.href}
+              {...getExternalLinkProps(link.href)}
+              whileHover={{ y: -2 }}
+            >
               {link.label}
             </motion.a>
           ))}
@@ -396,7 +410,12 @@ function ClassicPortfolio({ portalControl }) {
                     </ul>
                     <div className="project-links">
                       {project.links.map(([label, href]) => (
-                        <motion.a key={href} href={href} whileHover={{ y: -2 }}>
+                        <motion.a
+                          key={href}
+                          href={href}
+                          {...getExternalLinkProps(href)}
+                          whileHover={{ y: -2 }}
+                        >
                           {label}
                         </motion.a>
                       ))}
@@ -469,8 +488,8 @@ function ClassicPortfolio({ portalControl }) {
         <div className="wrap">
           <p>
             Markham, ON, CA / <a href="mailto:me@cokenhe.dev">me@cokenhe.dev</a> /
-            <a href="https://www.linkedin.com/in/cokenhe"> LinkedIn</a> /
-            <a href="https://github.com/cokenhe"> GitHub</a>
+            <a href="https://www.linkedin.com/in/cokenhe" {...EXTERNAL_LINK_PROPS}> LinkedIn</a> /
+            <a href="https://github.com/cokenhe" {...EXTERNAL_LINK_PROPS}> GitHub</a>
           </p>
         </div>
       </footer>

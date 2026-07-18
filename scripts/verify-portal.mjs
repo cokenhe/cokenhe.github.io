@@ -107,6 +107,46 @@ async function inspectFirstSectionLayout(page) {
   });
 }
 
+async function inspectExternalLinks(page) {
+  return page.evaluate(() => {
+    const describeExternalLinks = (root) => [...root.querySelectorAll(
+      'a[href^="http://"], a[href^="https://"]',
+    )].map((link) => ({
+      href: link.href,
+      label: link.textContent?.trim() ?? "",
+      rel: [...link.relList],
+      target: link.target,
+    }));
+    const newWorldDocument = document
+      .querySelector('[data-od-id="new-world-frame"]')
+      ?.contentDocument;
+
+    return {
+      classic: describeExternalLinks(document),
+      nocturnal: newWorldDocument ? describeExternalLinks(newWorldDocument) : [],
+    };
+  });
+}
+
+function requireExternalLinksOpenSafely(externalLinks) {
+  for (const [world, links] of Object.entries(externalLinks)) {
+    if (!links.length) {
+      throw new Error(`The ${world} world has no external links to verify.`);
+    }
+
+    const unsafeLinks = links.filter((link) => (
+      link.target !== "_blank"
+      || !link.rel.includes("noopener")
+      || !link.rel.includes("noreferrer")
+    ));
+    if (unsafeLinks.length) {
+      throw new Error(
+        `The ${world} world has external links that do not open safely in a new tab: ${JSON.stringify(unsafeLinks)}`,
+      );
+    }
+  }
+}
+
 function requireDesktopFirstSectionLayout(layout) {
   const paddingOffsetIsValid = Number.isFinite(layout.heroPaddingOffset)
     && layout.heroPaddingOffset >= 16
@@ -445,6 +485,9 @@ async function verifyDetailedChromiumFlow(browser) {
       return frame?.dataset.ready === "true"
         && frame.contentDocument?.body?.dataset.portalInteractive === "false";
     });
+
+    const externalLinks = await inspectExternalLinks(page);
+    requireExternalLinksOpenSafely(externalLinks);
 
     const classicHeading = page.getByRole("heading", {
       name: "Full stack developer for operational SaaS.",
@@ -801,6 +844,7 @@ async function verifyDetailedChromiumFlow(browser) {
     return {
       browserErrors: browserErrors.length,
       closingVisibility,
+      externalLinks,
       focusReveal: {
         ...focusReveal,
         hiddenAfterPointerExit,
